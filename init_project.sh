@@ -138,3 +138,22 @@ touch src/modules/admin/controllers/{admin.controller.ts,users-management.contro
 touch src/modules/admin/services/{moderation.service.ts,employees.service.ts,settings.service.ts,audit-logs.service.ts}
 
 echo "Структура проекта успешно создана в папке $ROOT_DIR"
+
+# --- SQL
+mkdir -p prisma/sql/functions
+mkdir -p prisma/sql/procedures
+mkdir -p prisma/sql/triggers
+
+touch prisma/sql/functions/validate_inn.sql
+touch prisma/sql/functions/calculate_rating.sql
+
+touch prisma/sql/procedures/process_escrow.sql
+
+touch prisma/sql/triggers/audit_log.sql
+touch prisma/sql/triggers/deal_guard.sql
+touch prisma/sql/triggers/stats_update.sql
+
+# --- Admin addon
+touch src/modules/admin/services/db-maintenance.service.ts
+
+echo "Структура обновлена (SQL Logic Layer добавлен)"
