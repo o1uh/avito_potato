@@ -3,7 +3,7 @@ import {
   HealthCheck,
   HealthCheckService,
   HttpHealthIndicator,
-  TypeOrmHealthIndicator, // Используем или PrismaHealthIndicator (кастомный)
+  HealthCheckError, // <--- Добавили импорт класса ошибки
 } from '@nestjs/terminus';
 import { PrismaClient } from '@prisma/client';
 
@@ -26,10 +26,14 @@ export class HealthController {
           await this.prisma.$queryRaw`SELECT 1`;
           return { database: { status: 'up' } };
         } catch (e) {
-          throw { database: { status: 'down', message: e.message } };
+          // ВАЖНО: Используем HealthCheckError, чтобы Terminus вернул 503, а не 500
+          throw new HealthCheckError('Database check failed', {
+            database: { status: 'down', message: e.message },
+          });
         }
       },
       // Проверка внешнего API (пример)
+      // В тесте E2E/Manual это может падать, если нет инета, но пока оставим как есть или закомментируем, если мешает
       () => this.http.pingCheck('google', 'https://google.com'),
     ]);
   }
