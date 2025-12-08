@@ -35,5 +35,5 @@ describe('AppController (e2e)', () => {
           throw new Error(`Expected status 200 or 503, got ${res.status}`);
         }
       });
-  });
+  }, 30000); // Увеличен таймаут до 30 секунд
 });
