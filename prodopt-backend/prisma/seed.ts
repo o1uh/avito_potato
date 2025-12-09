@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
@@ -46,7 +47,7 @@ async function main() {
   await prisma.verificationStatus.upsert({ where: { name: 'Не верифицирован' }, update: {}, create: { id: 1, name: 'Не верифицирован' } });
   await prisma.verificationStatus.upsert({ where: { name: 'Верифицирован' }, update: {}, create: { id: 2, name: 'Верифицирован' } });
 
-  // 5. Статусы товаров (добавлено, так как есть в схеме)
+  // 5. Статусы товаров
   const productStatuses = ['Черновик', 'Опубликован', 'Архив', 'На модерации'];
   for (const name of productStatuses) {
     await prisma.productStatus.upsert({
@@ -55,6 +56,39 @@ async function main() {
       create: { name },
     });
   }
+
+  // 6. Создание Супер-Админа и Компании Платформы (Для ручной проверки)
+  const adminEmail = 'admin@prodopt.ru';
+  const platformOoo = await prisma.organizationType.findFirst({ where: { name: 'ООО' } });
+  
+  // Создаем компанию-оператора
+  const adminCompany = await prisma.company.upsert({
+    where: { inn: '0000000000' }, // Условный ИНН платформы
+    update: {},
+    create: {
+      name: 'ПродОпт Администрация',
+      inn: '0000000000',
+      ogrn: '0000000000000',
+      organizationTypeId: platformOoo?.id || 1,
+      rating: 5.0,
+    },
+  });
+
+  // Создаем пользователя
+  const passwordHash = await argon2.hash('admin123');
+  
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {},
+    create: {
+      email: adminEmail,
+      fullName: 'Super Admin',
+      passwordHash: passwordHash,
+      roleInCompanyId: 1, // Пока заглушка, т.к. таблица ролей не заполнена в этом скрипте, но поле Int
+      companyId: adminCompany.id,
+      phone: '+70000000000',
+    },
+  });
 
   console.log('✅ Seeding finished.');
 }
