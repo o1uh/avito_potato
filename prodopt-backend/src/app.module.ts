@@ -8,7 +8,9 @@ import { CommonModule } from './common/common.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { CommunicationModule } from './modules/communication/communication.module';
 import { PrismaModule } from './prisma/prisma.module'; 
-import { ReferencesModule } from './modules/references/references.module'; 
+import { ReferencesModule } from './modules/references/references.module';
+import { AuthModule } from './modules/auth/auth.module'; // Added
+import { UsersModule } from './modules/users/users.module'; // Added
 
 @Module({
   imports: [
@@ -21,7 +23,9 @@ import { ReferencesModule } from './modules/references/references.module';
     CommonModule,
     HealthModule,
     CommunicationModule,
-    ReferencesModule, 
+    ReferencesModule,
+    AuthModule, // Registered
+    UsersModule, // Registered
   ],
   providers: [
     {
