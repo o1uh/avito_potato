@@ -7,6 +7,8 @@ import { HealthModule } from './modules/health/health.module';
 import { CommonModule } from './common/common.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { CommunicationModule } from './modules/communication/communication.module';
+import { PrismaModule } from './prisma/prisma.module'; 
+import { ReferencesModule } from './modules/references/references.module'; 
 
 @Module({
   imports: [
@@ -15,9 +17,11 @@ import { CommunicationModule } from './modules/communication/communication.modul
       load: [configuration],
       validationSchema: validationSchema,
     }),
+    PrismaModule, 
     CommonModule,
     HealthModule,
     CommunicationModule,
+    ReferencesModule, 
   ],
   providers: [
     {
