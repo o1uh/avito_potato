@@ -18,9 +18,11 @@ model Company {
   ogrn                    String   @db.VarChar(15)
   description             String?  @db.Text
   rating                  Decimal  @default(0) @db.Decimal(2, 1)
+  
   organizationTypeId      Int      @map("organization_type_id")
   verificationStatusId    Int?     @map("verification_status_id")
   responsibleEmployeeId   Int?     @map("responsible_employee_id")
+  
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -29,7 +31,10 @@ model Company {
   purchaseRequests        PurchaseRequest[] @relation("BuyerRequests")
   openRequests            PurchaseRequest[] @relation("SupplierOpenRequests")
   
-  // Связи
+  // Связи со справочниками
+  organizationType        OrganizationType @relation(fields: [organizationTypeId], references: [id])
+  verificationStatus      VerificationStatus? @relation(fields: [verificationStatusId], references: [id])
+
   @@map("companies")
   @@index([inn])
   @@index([name])
@@ -64,7 +69,9 @@ model Product {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
-  supplier          Company @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  supplier          Company         @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  category          ProductCategory @relation(fields: [productCategoryId], references: [id])
+  status            ProductStatus   @relation(fields: [productStatusId], references: [id])
   variants          ProductVariant[]
 
   @@map("products")
@@ -79,9 +86,11 @@ model ProductVariant {
   price              Decimal  @db.Decimal(10, 2)
   minOrderQuantity   Int      @default(1) @map("min_order_quantity")
   stockQuantity      Int?     @map("stock_quantity")
+  measurementUnitId  Int      @map("measurement_unit_id")
   isActive           Boolean  @default(true) @map("is_active")
 
-  product            Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product            Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  measurementUnit    MeasurementUnit @relation(fields: [measurementUnitId], references: [id])
 
   @@map("product_variants")
   @@index([sku])
@@ -101,6 +110,52 @@ model PurchaseRequest {
   @@map("purchase_requests")
 }
 
-// ... Остальные модели будут добавлены по мере реализации модулей, 
-// чтобы не перегружать первый этап миграции и отладки.
-// Сейчас нам достаточно User, Company, Product для старта.
+// --- Раздел: Справочники (Lookup Tables) ---
+
+model OrganizationType {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(50) // "ООО", "ИП"
+  
+  companies Company[]
+
+  @@map("organization_types")
+}
+
+model VerificationStatus {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(50) // "Не верифицирован", "Верифицирован"
+
+  companies Company[]
+
+  @@map("verification_statuses")
+}
+
+model ProductCategory {
+  id       Int    @id @default(autoincrement())
+  name     String @unique @db.VarChar(100)
+  parentId Int?   @map("parent_id")
+  
+  parent   ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children ProductCategory[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model MeasurementUnit {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(20) // "кг", "шт", "литр"
+
+  productVariants ProductVariant[]
+
+  @@map("measurement_units")
+}
+
+model ProductStatus {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(50) // "Черновик", "Опубликован"
+
+  products Product[]
+
+  @@map("product_statuses")
+}

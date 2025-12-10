@@ -7,6 +7,10 @@ import { HealthModule } from './modules/health/health.module';
 import { CommonModule } from './common/common.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { CommunicationModule } from './modules/communication/communication.module';
+import { PrismaModule } from './prisma/prisma.module'; 
+import { ReferencesModule } from './modules/references/references.module';
+import { AuthModule } from './modules/auth/auth.module'; // Added
+import { UsersModule } from './modules/users/users.module'; // Added
 
 @Module({
   imports: [
@@ -15,9 +19,13 @@ import { CommunicationModule } from './modules/communication/communication.modul
       load: [configuration],
       validationSchema: validationSchema,
     }),
+    PrismaModule, 
     CommonModule,
     HealthModule,
     CommunicationModule,
+    ReferencesModule,
+    AuthModule, // Registered
+    UsersModule, // Registered
   ],
   providers: [
     {
