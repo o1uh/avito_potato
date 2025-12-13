@@ -75,9 +75,22 @@ model Product {
   category          ProductCategory @relation(fields: [productCategoryId], references: [id])
   status            ProductStatus   @relation(fields: [productStatusId], references: [id])
   variants          ProductVariant[]
+  images            ProductImage[]
+
 
   @@map("products")
   @@index([name])
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  imageUrl  String  @map("image_url") @db.VarChar(255)
+  isMain    Boolean @default(false) @map("is_main")
+  productId Int     @map("product_id")
+  
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
 }
 
 model ProductVariant {
