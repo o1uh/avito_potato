@@ -2,26 +2,36 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'; // Импорт
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  // Получаем доступ к конфигурации
   const configService = app.get(ConfigService);
 
-  // Включаем глобальную валидацию (Требование ТЗ)
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Удаляет из запроса поля, которых нет в DTO
-      transform: true, // Автоматически преобразует типы (например, строку '1' в число 1)
+      whitelist: true,
+      transform: true,
     }),
   );
 
-  // Включаем Graceful Shutdown (корректное завершение при SIGTERM)
+  // --- Настройка Swagger ---
+  const config = new DocumentBuilder()
+    .setTitle('ProdOpt API')
+    .setDescription('API documentation for ProdOpt platform')
+    .setVersion('1.0')
+    .addBearerAuth() // Добавляет кнопку авторизации (замочек)
+    .build();
+  
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+  // -------------------------
+
   app.enableShutdownHooks();
 
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`Swagger is running on: ${await app.getUrl()}/api`);
 }
 bootstrap();

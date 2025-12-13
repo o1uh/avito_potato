@@ -57,18 +57,20 @@ async function main() {
     });
   }
 
-  // 6. Создание Супер-Админа и Компании Платформы (Для ручной проверки)
+  // 6. Создание Супер-Админа и Компании Платформы
   const adminEmail = 'admin@prodopt.ru';
   const platformOoo = await prisma.organizationType.findFirst({ where: { name: 'ООО' } });
   
-  // Создаем компанию-оператора
+  // ИСПОЛЬЗУЕМ ВАЛИДНЫЙ ИНН
+  const validInn = '7736207543'; 
+
   const adminCompany = await prisma.company.upsert({
-    where: { inn: '0000000000' }, // Условный ИНН платформы
+    where: { inn: validInn }, 
     update: {},
     create: {
       name: 'ПродОпт Администрация',
-      inn: '0000000000',
-      ogrn: '0000000000000',
+      inn: validInn, 
+      ogrn: '1027700229193', // Реальный ОГРН для приличия
       organizationTypeId: platformOoo?.id || 1,
       rating: 5.0,
     },

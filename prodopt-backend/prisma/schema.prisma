@@ -31,6 +31,8 @@ model Company {
   purchaseRequests        PurchaseRequest[] @relation("BuyerRequests")
   openRequests            PurchaseRequest[] @relation("SupplierOpenRequests")
   
+  paymentDetails          PaymentDetail[] // Обратная связь для банковских счетов
+
   // Связи со справочниками
   organizationType        OrganizationType @relation(fields: [organizationTypeId], references: [id])
   verificationStatus      VerificationStatus? @relation(fields: [verificationStatusId], references: [id])
@@ -158,4 +160,19 @@ model ProductStatus {
   products Product[]
 
   @@map("product_statuses")
+}
+
+model PaymentDetail {
+  id                   Int      @id @default(autoincrement())
+  bankName             String   @map("bank_name") @db.VarChar(255)
+  bik                  String   @db.VarChar(9)
+  checkingAccount      String   @map("checking_account") @db.VarChar(20)
+  correspondentAccount String   @map("correspondent_account") @db.VarChar(20)
+  isPrimary            Boolean  @default(false) @map("is_primary")
+  companyId            Int      @map("company_id")
+  
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("payment_details")
+  @@index([companyId])
 }
