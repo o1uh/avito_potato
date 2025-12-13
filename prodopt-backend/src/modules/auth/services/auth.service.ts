@@ -63,7 +63,7 @@ export class AuthService {
     });
 
     // Передаем companyId в генерацию токенов
-    const tokens = await this.getTokens(newUser.id, newUser.email, newUser.companyId);
+    const tokens = await this.getTokens(newUser.id, newUser.email, newUser.companyId, newUser.roleInCompanyId);
     await this.updateRefreshToken(newUser.id, tokens.refreshToken);
 
     return tokens;
@@ -82,7 +82,7 @@ export class AuthService {
     }
 
     // Передаем companyId в генерацию токенов
-    const tokens = await this.getTokens(user.id, user.email, user.companyId);
+    const tokens = await this.getTokens(user.id, user.email, user.companyId, user.roleInCompanyId);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
@@ -107,7 +107,7 @@ export class AuthService {
     }
 
     // Передаем companyId в генерацию токенов
-    const tokens = await this.getTokens(user.id, user.email, user.companyId);
+    const tokens = await this.getTokens(user.id, user.email, user.companyId, user.roleInCompanyId);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
@@ -116,8 +116,9 @@ export class AuthService {
   // --- Вспомогательные методы ---
 
   // ОБНОВЛЕНО: Добавлен аргумент companyId
-  private async getTokens(userId: number, email: string, companyId: number) {
-    const payload = { sub: userId, email, companyId }; // Добавляем companyId в payload
+  // В аргументы добавить roleId
+  private async getTokens(userId: number, email: string, companyId: number, roleId: number) {
+    const payload = { sub: userId, email, companyId, role: roleId }; // Добавили role
 
     const [at, rt] = await Promise.all([
       this.jwtService.signAsync(
