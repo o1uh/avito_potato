@@ -27,7 +27,7 @@ describe('Catalog Module (e2e)', () => {
   const supplierB = {
     email: `suppB_${Date.now()}@test.com`,
     password: 'pass',
-    inn: '7736207543', // Gazprom
+    inn: '7704340310', // Yandex
     token: '',
   };
 
