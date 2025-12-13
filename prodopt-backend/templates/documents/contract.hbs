@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Times New Roman', serif; line-height: 1.5; font-size: 12pt; }
+        h3 { text-align: center; }
+        p { text-align: justify; text-indent: 30px; }
+        .sign-block { display: flex; justify-content: space-between; margin-top: 50px; }
+        .party { width: 45%; }
+    </style>
+</head>
+<body>
+    <h3>ДОГОВОР ПОСТАВКИ № {{number}}</h3>
+    <p>г. Москва &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {{date}}</p>
+
+    <p>
+        <strong>{{supplier.name}}</strong>, именуемое в дальнейшем «Поставщик», в лице {{supplier.director}}, действующего на основании Устава, с одной стороны, и
+        <strong>{{buyer.name}}</strong>, именуемое в дальнейшем «Покупатель», в лице {{buyer.director}}, действующего на основании Устава, с другой стороны,
+        заключили настоящий Договор о нижеследующем:
+    </p>
+
+    <h4>1. ПРЕДМЕТ ДОГОВОРА</h4>
+    <p>1.1. Поставщик обязуется передать в собственность Покупателя Товар, а Покупатель обязуется принять и оплатить этот Товар.</p>
+    <p>1.2. Общая сумма сделки составляет <strong>{{totalAmount}} рублей</strong>.</p>
+
+    <h4>2. РЕКВИЗИТЫ И ПОДПИСИ СТОРОН</h4>
+    
+    <table width="100%">
+        <tr>
+            <td width="50%" valign="top">
+                <strong>ПОСТАВЩИК:</strong><br>
+                {{supplier.name}}<br>
+                ИНН: {{supplier.inn}}<br>
+                Адрес: {{supplier.address}}<br><br>
+                ________________ / {{supplier.director}}
+            </td>
+            <td width="50%" valign="top">
+                <strong>ПОКУПАТЕЛЬ:</strong><br>
+                {{buyer.name}}<br>
+                ИНН: {{buyer.inn}}<br>
+                Адрес: {{buyer.address}}<br><br>
+                ________________ / {{buyer.director}}
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

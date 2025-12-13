@@ -55,9 +55,10 @@ model User {
   refreshTokenHash     String?  @unique @map("refresh_token_hash")
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   createdAt            DateTime @default(now()) @map("created_at")
+  uploadedDocuments    Document[] // Связь с документами
+
 
   company              Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
   @@map("users")
 }
 
@@ -188,4 +189,45 @@ model PaymentDetail {
 
   @@map("payment_details")
   @@index([companyId])
+}
+
+// --- Раздел 4: Документы ---
+
+model Document {
+  id                  Int      @id @default(autoincrement())
+  entityType          String   @map("entity_type") @db.VarChar(50) // 'deal', 'company', 'product'
+  entityId            Int      @map("entity_id")
+  fileUrl             String   @map("file_url") @db.VarChar(255) // Ссылка на S3
+  documentTypeId      Int      @map("document_type_id")
+  documentStatusId    Int      @map("document_status_id") @default(1)
+  
+  uploadedById        Int      @map("uploaded_by_id") // Кто загрузил или инициировал генерацию
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  documentType        DocumentType @relation(fields: [documentTypeId], references: [id])
+  documentStatus      DocumentStatus @relation(fields: [documentStatusId], references: [id])
+  uploader            User     @relation(fields: [uploadedById], references: [id])
+
+  @@map("documents")
+  @@index([entityType, entityId])
+}
+
+// --- Справочники для документов ---
+
+model DocumentType {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(100) // "Договор", "Счет", "УПД"
+
+  documents Document[]
+
+  @@map("document_types")
+}
+
+model DocumentStatus {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(50) // "Создан", "Подписан", "Архив"
+
+  documents Document[]
+
+  @@map("document_statuses")
 }
