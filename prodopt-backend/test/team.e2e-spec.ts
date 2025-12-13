@@ -13,8 +13,8 @@ describe('Team Management (e2e)', () => {
   const adminEmail = `admin_${Date.now()}@team.test`;
   const employeeEmail = `employee_${Date.now()}@team.test`;
   
-  // ВАЖНО: Используем валидный ИНН (Сбербанк), чтобы пройти check constraint в БД
-  const validInn = '7707083893'; 
+  // ВАЖНО: Используем валидный ИНН (ВТБ), чтобы пройти check constraint в БД
+  const validInn = '7702070139'; 
   
   let adminToken: string;
   let companyId: number;
