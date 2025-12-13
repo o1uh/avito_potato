@@ -21,7 +21,8 @@ import { ElasticSyncConsumer } from './consumers/elastic-sync.consumer';
     ElasticsearchModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        node: configService.get<string>('ELASTICSEARCH_NODE') || 'http://elasticsearch:9200',
+        // ИСПРАВЛЕНИЕ: Дефолтный хост изменен на localhost для локальной разработки и тестов
+        node: configService.get<string>('ELASTICSEARCH_NODE') || 'http://localhost:9200',
       }),
       inject: [ConfigService],
     }),

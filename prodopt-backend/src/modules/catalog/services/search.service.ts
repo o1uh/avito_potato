@@ -12,11 +12,10 @@ export class SearchService {
   async search(dto: SearchProductDto) {
     const { q, categoryId, minPrice, maxPrice, limit, offset } = dto;
 
-    // Формируем массив условий (must)
     const mustQueries: any[] = [];
     const filterQueries: any[] = [];
 
-    // Полнотекстовый поиск
+    // 1. Полнотекстовый поиск
     if (q) {
       mustQueries.push({
         multi_match: {
@@ -29,12 +28,11 @@ export class SearchService {
       mustQueries.push({ match_all: {} });
     }
 
-    // Фильтры
+    // 2. Фильтры
     if (categoryId) {
       filterQueries.push({ term: { categoryId: categoryId } });
     }
 
-    // Фильтр по цене (Nested query, т.к. цена внутри массива variants)
     if (minPrice !== undefined || maxPrice !== undefined) {
       const range: any = {};
       if (minPrice !== undefined) range.gte = minPrice;
@@ -51,7 +49,8 @@ export class SearchService {
     }
 
     try {
-      const result = await this.elasticsearchService.search({
+      // ИСПРАВЛЕНИЕ: Параметры передаются на верхнем уровне, без 'body'
+      const response = await this.elasticsearchService.search({
         index: this.indexName,
         from: offset,
         size: limit,
@@ -61,52 +60,77 @@ export class SearchService {
             filter: filterQueries,
           },
         },
+        // 3. Агрегации (Фасеты)
+        aggregations: {
+          categories: {
+            terms: {
+              field: 'categoryId',
+              size: 20,
+            },
+            aggs: {
+              category_name: {
+                terms: {
+                  field: 'categoryName.keyword',
+                  size: 1
+                }
+              }
+            }
+          },
+        },
       });
 
-      // Маппинг результатов (возвращаем только source)
-      const hits = result.hits.hits;
-      const total = typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total;
+      const hits = response.hits;
+      const aggregations = response.aggregations;
+
+      // Маппинг результатов агрегации
+      const facets = (aggregations?.categories as any)?.buckets.map((bucket: any) => ({
+        categoryId: bucket.key,
+        count: bucket.doc_count,
+        name: bucket.category_name?.buckets?.[0]?.key || 'Unknown',
+      })) || [];
 
       return {
-        total: total,
-        items: hits.map((hit) => hit._source),
+        total: (hits.total as any).value,
+        items: hits.hits.map((hit) => hit._source),
+        facets: facets,
       };
     } catch (error) {
       this.logger.error(`Elastic search error: ${error.message}`);
-      // В случае ошибки Elastic можно фолбэкнуться на БД, но пока возвращаем пустой результат
-      return { total: 0, items: [] };
+      return { total: 0, items: [], facets: [] };
     }
   }
 
-  // Метод для создания индекса (можно вызывать при старте или миграции)
   async createIndexIfNotExists() {
-    try {
-      const indexExists = await this.elasticsearchService.indices.exists({ index: this.indexName });
-      if (!indexExists) {
-        await this.elasticsearchService.indices.create({
-          index: this.indexName,
-          mappings: {
-            properties: {
-              id: { type: 'integer' },
-              name: { type: 'text', analyzer: 'russian' },
-              description: { type: 'text', analyzer: 'russian' },
-              categoryId: { type: 'integer' },
-              supplierId: { type: 'integer' },
-              variants: {
-                type: 'nested',
-                properties: {
-                  sku: { type: 'keyword' },
-                  price: { type: 'float' },
-                  variantName: { type: 'text' },
-                },
+    const indexExists = await this.elasticsearchService.indices.exists({ index: this.indexName });
+    if (!indexExists) {
+      // ИСПРАВЛЕНИЕ: 'mappings' передается на верхнем уровне
+      await this.elasticsearchService.indices.create({
+        index: this.indexName,
+        mappings: {
+          properties: {
+            id: { type: 'integer' },
+            name: { type: 'text', analyzer: 'russian' },
+            description: { type: 'text', analyzer: 'russian' },
+            categoryId: { type: 'integer' },
+            categoryName: { 
+              type: 'text',
+              fields: {
+                keyword: { type: 'keyword' }
+              }
+            },
+            supplierId: { type: 'integer' },
+            variants: {
+              type: 'nested',
+              properties: {
+                sku: { type: 'keyword' },
+                price: { type: 'float' },
+                variantName: { type: 'text' },
               },
             },
           },
-        });
-        this.logger.log(`Index ${this.indexName} created`);
-      }
-    } catch (e) {
-      this.logger.error(`Error checking/creating index: ${e.message}`);
+        },
+      });
+      this.logger.log(`Index ${this.indexName} created`);
     }
   }
 }
