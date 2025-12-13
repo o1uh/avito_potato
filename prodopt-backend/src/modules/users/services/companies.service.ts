@@ -56,15 +56,23 @@ export class CompaniesService {
 
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        // Обработка нарушения CHECK constraint (P2010 - raw query error, но Prisma может вернуть P2000-P2003 в зависимости от версии)
-        // Для Constraints обычно ошибка "new row for relation ... violates check constraint"
-        if (error.code === 'P2010' || error.message.includes('check_inn_valid')) {
-           throw new BadRequestException('Некорректный ИНН (ошибка валидации контрольной суммы)');
-        }
+        // P2002: Unique constraint failed
         if (error.code === 'P2002') {
           throw new BadRequestException('Компания с таким ИНН уже существует');
         }
+        
+        // P2010: Raw query failed (иногда сюда падает check constraint)
+        if (error.code === 'P2010' && error.message.includes('check_inn_valid')) {
+           throw new BadRequestException('Некорректный ИНН (ошибка валидации контрольной суммы)');
+        }
       }
+      
+      // Добавляем обработку P2000 или "Unknown" ошибок, если в сообщении есть имя констрейнта
+      // Prisma иногда пробрасывает ошибку БД напрямую в message
+      if (error.message && error.message.includes('check_inn_valid')) {
+          throw new BadRequestException('Некорректный ИНН (ошибка валидации контрольной суммы)');
+      }
+
       this.logger.error(error);
       throw error;
     }
