@@ -9,6 +9,8 @@ import { SearchController } from './controllers/search.controller';
 import { ProductsService } from './services/products.service';
 import { SearchService } from './services/search.service';
 import { ElasticSyncConsumer } from './consumers/elastic-sync.consumer';
+import { ProductMediaService } from './services/product-media.service';
+
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { ElasticSyncConsumer } from './consumers/elastic-sync.consumer';
     }),
   ],
   controllers: [ProductsController, SearchController],
-  providers: [ProductsService, SearchService, ElasticSyncConsumer],
+  providers: [ProductsService, SearchService, ElasticSyncConsumer, ProductMediaService],
   exports: [ProductsService, SearchService],
 })
 export class CatalogModule implements OnModuleInit {

@@ -12,14 +12,13 @@ export class ProductsService {
   ) {}
 
   async create(supplierId: number, dto: CreateProductDto) {
-    // Создаем товар и варианты в одной транзакции
     const product = await this.prisma.product.create({
       data: {
         name: dto.name,
         description: dto.description,
         supplierCompanyId: supplierId,
         productCategoryId: dto.productCategoryId,
-        productStatusId: 1, // По умолчанию Черновик или На модерации (зависит от seed, пусть 2 - Опубликован для теста)
+        productStatusId: 1, 
         variants: {
           create: dto.variants.map((v) => ({
             variantName: v.variantName,
@@ -33,12 +32,11 @@ export class ProductsService {
       include: { variants: true },
     });
 
-    // Отправляем в очередь на индексацию
     await this.syncQueue.add('index-product', { productId: product.id });
-
     return product;
   }
 
+  // --- ОБНОВЛЕННЫЙ МЕТОД UPDATE ---
   async update(id: number, supplierId: number, dto: UpdateProductDto) {
     const product = await this.prisma.product.findUnique({ where: { id } });
 
@@ -47,23 +45,48 @@ export class ProductsService {
       throw new ForbiddenException('Вы можете редактировать только свои товары');
     }
 
-    // Обновляем базовую инфу
-    const updatedProduct = await this.prisma.product.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        productCategoryId: dto.productCategoryId,
-      },
-      include: { variants: true },
+    // Выполняем в транзакции: обновление инфо + перезапись вариантов
+    const updatedProduct = await this.prisma.$transaction(async (tx) => {
+      // 1. Обновляем основные поля
+      const p = await tx.product.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          productCategoryId: dto.productCategoryId,
+        },
+      });
+
+      // 2. Удаляем старые варианты (Стратегия: полная замена списка вариантов)
+      // В будущем, если будут сделки, ссылающиеся на варианты, нужно будет делать soft delete или умный upsert.
+      // Но для MVP полная замена допустима, пока нет активных сделок.
+      await tx.productVariant.deleteMany({
+        where: { productId: id },
+      });
+
+      // 3. Создаем новые варианты
+      await tx.productVariant.createMany({
+        data: dto.variants.map((v) => ({
+          productId: id,
+          variantName: v.variantName,
+          sku: v.sku,
+          price: v.price,
+          minOrderQuantity: v.minOrderQuantity,
+          measurementUnitId: v.measurementUnitId,
+        })),
+      });
+
+      return p;
     });
 
-    // Примечание: Полное обновление вариантов (удаление старых/создание новых) - сложнее,
-    // здесь для простоты обновляем триггер индексации. В реальном проекте нужна логика merge вариантов.
-    
-    await this.syncQueue.add('index-product', { productId: updatedProduct.id });
+    // Триггер синхронизации с Elastic
+    await this.syncQueue.add('index-product', { productId: id });
 
-    return updatedProduct;
+    // Возвращаем актуальные данные
+    return this.prisma.product.findUnique({
+      where: { id },
+      include: { variants: true, images: true },
+    });
   }
 
   async delete(id: number, supplierId: number) {
@@ -75,8 +98,6 @@ export class ProductsService {
     }
 
     await this.prisma.product.delete({ where: { id } });
-
-    // Удаляем из индекса
     await this.syncQueue.add('delete-product', { productId: id });
 
     return { message: 'Товар удален' };
@@ -85,7 +106,7 @@ export class ProductsService {
   async getMyProducts(supplierId: number) {
     return this.prisma.product.findMany({
       where: { supplierCompanyId: supplierId },
-      include: { variants: true, status: true, category: true },
+      include: { variants: true, status: true, category: true, images: true },
     });
   }
 }
