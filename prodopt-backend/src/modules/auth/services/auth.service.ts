@@ -20,7 +20,7 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  // Регистрация: Создает Компанию и первого Пользователя в транзакции
+  // Регистрация
   async register(dto: RegisterDto) {
     const userExists = await this.usersService.findByEmail(dto.email);
     if (userExists) {
@@ -36,24 +36,18 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(dto.password);
 
-    // Используем транзакцию, чтобы создать и компанию, и юзера атомарно
     const newUser = await this.prisma.$transaction(async (tx) => {
-      // 1. Создаем компанию
-      // Для упрощения, берем первый попавшийся тип организации, если не передан (в ТЗ нет ввода типа орг на регистрации)
-      // В реальности нужно брать из DTO или парсить название
       const defaultOrgType = await tx.organizationType.findFirst();
       
       const company = await tx.company.create({
         data: {
           name: dto.companyName,
           inn: dto.inn,
-          ogrn: '', // ОГРН обязателен в схеме, но в DTO его нет. Временно ставим заглушку или меняем схему. 
-                    // Лучше добавим заглушку, чтобы не ломать DTO из ТЗ.
+          ogrn: '', 
           organizationTypeId: defaultOrgType?.id || 1,
         },
       });
 
-      // 2. Создаем пользователя
       const user = await tx.user.create({
         data: {
           email: dto.email,
@@ -61,20 +55,21 @@ export class AuthService {
           passwordHash,
           phone: dto.phone,
           companyId: company.id,
-          roleInCompanyId: 1, // Заглушка, нужно брать из справочника ролей
+          roleInCompanyId: 1, 
         },
       });
 
       return user;
     });
 
-    const tokens = await this.getTokens(newUser.id, newUser.email);
+    // Передаем companyId в генерацию токенов
+    const tokens = await this.getTokens(newUser.id, newUser.email, newUser.companyId);
     await this.updateRefreshToken(newUser.id, tokens.refreshToken);
 
     return tokens;
   }
 
-  // Вход в систему
+  // Вход
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
@@ -86,13 +81,13 @@ export class AuthService {
       throw new UnauthorizedException('Access Denied');
     }
 
-    const tokens = await this.getTokens(user.id, user.email);
+    // Передаем companyId в генерацию токенов
+    const tokens = await this.getTokens(user.id, user.email, user.companyId);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
   }
 
-  // Выход (удаление хеша токена)
   async logout(userId: number) {
     await this.usersService.update(userId, {
       refreshTokenHash: null,
@@ -100,7 +95,6 @@ export class AuthService {
     });
   }
 
-  // Обновление токенов
   async refreshTokens(userId: number, rt: string) {
     const user = await this.usersService.findById(userId);
     if (!user || !user.refreshTokenHash) {
@@ -112,7 +106,8 @@ export class AuthService {
       throw new ForbiddenException('Access Denied');
     }
 
-    const tokens = await this.getTokens(user.id, user.email);
+    // Передаем companyId в генерацию токенов
+    const tokens = await this.getTokens(user.id, user.email, user.companyId);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
@@ -120,14 +115,17 @@ export class AuthService {
 
   // --- Вспомогательные методы ---
 
-  private async getTokens(userId: number, email: string) {
+  // ОБНОВЛЕНО: Добавлен аргумент companyId
+  private async getTokens(userId: number, email: string, companyId: number) {
+    const payload = { sub: userId, email, companyId }; // Добавляем companyId в payload
+
     const [at, rt] = await Promise.all([
       this.jwtService.signAsync(
-        { sub: userId, email },
+        payload,
         { secret: this.configService.get<string>('JWT_SECRET'), expiresIn: '15m' },
       ),
       this.jwtService.signAsync(
-        { sub: userId, email },
+        payload,
         { secret: this.configService.get<string>('JWT_SECRET'), expiresIn: '7d' },
       ),
     ]);
@@ -141,7 +139,7 @@ export class AuthService {
   private async updateRefreshToken(userId: number, rt: string) {
     const hash = await argon2.hash(rt);
     const expiry = new Date();
-    expiry.setDate(expiry.getDate() + 7); // 7 дней жизни
+    expiry.setDate(expiry.getDate() + 7); 
 
     await this.usersService.update(userId, {
       refreshTokenHash: hash,
