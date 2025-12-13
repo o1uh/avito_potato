@@ -8,14 +8,16 @@ describe('Auth Module (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   
-  // Генерируем уникальные данные для каждого запуска, чтобы не чистить БД
+  // ВАЖНО: Используем валидный ИНН (Газпром)
+  const validInn = '7736050003';
+
   const timestamp = Date.now();
   const testUser = {
     email: `e2e_user_${timestamp}@test.com`,
     password: 'SuperStrongPassword123',
     fullName: 'E2E User',
     companyName: `E2E Company ${timestamp}`,
-    inn: String(timestamp).slice(-10), // 10 цифр из timestamp
+    inn: validInn, // Используем валидный ИНН
     phone: '+79990000000',
   };
 
@@ -28,20 +30,32 @@ describe('Auth Module (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     
-    // Важно подключить валидацию, так как она используется в main.ts
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     
     await app.init();
     prisma = app.get(PrismaService);
+
+    // 0. Предварительная чистка (на случай, если ИНН уже занят)
+    const existingCompany = await prisma.company.findUnique({ where: { inn: validInn } });
+    if (existingCompany) {
+      // Удаляем компанию (каскадно удалятся и юзеры)
+      await prisma.company.delete({ where: { id: existingCompany.id } });
+    }
   });
 
   afterAll(async () => {
     // Удаляем тестовые данные после прогона
     const user = await prisma.user.findUnique({ where: { email: testUser.email } });
     if (user) {
-      await prisma.user.delete({ where: { id: user.id } });
+      // Удаляем компанию (каскадно удалит и юзера)
       await prisma.company.delete({ where: { id: user.companyId } });
     }
+    // На всякий случай чистим по ИНН, если юзер не создался
+    else {
+        const company = await prisma.company.findUnique({ where: { inn: validInn } });
+        if (company) await prisma.company.delete({ where: { id: company.id } });
+    }
+
     await app.close();
   });
 

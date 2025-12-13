@@ -76,8 +76,6 @@ async function main() {
     },
   });
 
-  // ... (дальше код создания юзера)
-
   // Создаем пользователя
   const passwordHash = await argon2.hash('admin123');
   
