@@ -14,7 +14,6 @@ find . -type f | \
     grep -v '/node_modules/' | \
     grep -v '/dist/' | \
     grep -v '/\.vscode/' | \
-    grep -v '/prisma/migrations/' | \
     # Исключаем конкретные файлы по имени
     grep -v 'package-lock.json' | \
     grep -v 'yarn.lock' | \
