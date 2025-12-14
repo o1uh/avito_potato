@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Helvetica', sans-serif; font-size: 14px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .details { width: 100%; margin-bottom: 20px; }
+        .details td { padding: 5px; }
+        .items { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .items th, .items td { border: 1px solid #000; padding: 8px; text-align: left; }
+        .total { text-align: right; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Счет на оплату № {{number}} от {{date}}</h2>
+    </div>
+
+    <table class="details">
+        <tr>
+            <td width="20%"><strong>Поставщик:</strong></td>
+            <td>{{supplier.name}}, ИНН {{supplier.inn}}, {{supplier.address}}</td>
+        </tr>
+        <tr>
+            <td><strong>Покупатель:</strong></td>
+            <td>{{buyer.name}}, ИНН {{buyer.inn}}, {{buyer.address}}</td>
+        </tr>
+    </table>
+
+    <table class="items">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Товар</th>
+                <th>Кол-во</th>
+                <th>Ед. изм.</th>
+                <th>Цена</th>
+                <th>Сумма</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each items}}
+            <tr>
+                <td>{{@index}}</td>
+                <td>{{name}}</td>
+                <td>{{quantity}}</td>
+                <td>{{unit}}</td>
+                <td>{{price}} руб.</td>
+                <td>{{total}} руб.</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+
+    <div class="total">
+        Итого к оплате: {{totalAmount}} руб.
+    </div>
+    <br>
+    <div>
+        Руководитель _________________ / {{supplier.director}} /
+    </div>
+</body>
+</html>

@@ -12,7 +12,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ReferencesModule } from './modules/references/references.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
-import { CatalogModule } from './modules/catalog/catalog.module'; // Added
+import { CatalogModule } from './modules/catalog/catalog.module'; 
+import { DocumentsModule } from './modules/documents/documents.module'; 
+import { FinanceModule } from './modules/finance/finance.module';
+
 
 @Module({
   imports: [
@@ -39,7 +42,9 @@ import { CatalogModule } from './modules/catalog/catalog.module'; // Added
     ReferencesModule,
     AuthModule,
     UsersModule,
-    CatalogModule, // Registered
+    CatalogModule, 
+    DocumentsModule,
+    FinanceModule,
   ],
   providers: [
     {

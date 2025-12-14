@@ -92,6 +92,26 @@ async function main() {
     },
   });
 
+  // 7. Типы документов
+  const docTypes = ['Договор', 'Счет', 'УПД', 'Акт', 'Сертификат'];
+  for (const name of docTypes) {
+    await prisma.documentType.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+  // 8. Статусы документов
+  const docStatuses = ['Создан', 'На проверке', 'Подписан', 'Отклонен'];
+  for (const name of docStatuses) {
+    await prisma.documentStatus.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
   console.log('✅ Seeding finished.');
 }
 
