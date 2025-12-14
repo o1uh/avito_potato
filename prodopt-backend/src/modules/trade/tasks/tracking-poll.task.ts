@@ -20,10 +20,10 @@ export class TrackingPollTask {
     this.logger.log('Starting tracking poll...');
 
     // 1. Ищем активные отгрузки, где сделка еще в пути (SHIPPED)
-    // delivery_status_id = 1 (In Transit) - предположим из сида
+    // deliveryStatusId = 1 (In Transit) - используем camelCase!
     const shipments = await this.prisma.shipment.findMany({
       where: {
-        delivery_status_id: 1, 
+        deliveryStatusId: 1, 
         deal: { dealStatusId: 4 }, // 4 = SHIPPED
       },
       include: { deal: { include: { buyer: true } } },
@@ -31,15 +31,16 @@ export class TrackingPollTask {
 
     for (const shipment of shipments) {
       try {
-        const result = await this.deliveryProvider.getTrackingStatus(shipment.tracking_number);
+        // Используем camelCase: trackingNumber
+        const result = await this.deliveryProvider.getTrackingStatus(shipment.trackingNumber);
 
         if (result.status === 'DELIVERED') {
           // Обновляем статус доставки в БД
           await this.prisma.shipment.update({
             where: { id: shipment.id },
             data: { 
-              delivery_status_id: 2, // 2 = Delivered (нужен сид)
-              expected_delivery_date: result.updatedAt 
+              deliveryStatusId: 2, // 2 = Delivered (используем camelCase!)
+              expectedDeliveryDate: result.updatedAt 
             },
           });
 

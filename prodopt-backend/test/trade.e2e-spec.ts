@@ -135,6 +135,7 @@ describe('Trade Module (e2e) - Full Flow', () => {
   let rfqId: number;
   let offerId: number;
   let dealId: number;
+  let initialSupplierBalance = 0;
 
   // --- ТЕСТЫ ---
 
@@ -215,5 +216,79 @@ describe('Trade Module (e2e) - Full Flow', () => {
       .get(`/trade/deals/${dealId}`)
       .set('Authorization', `Bearer ${hackerUser.token}`)
       .expect(403); // Forbidden
+  });
+
+  it('7. Supplier: Add Tracking Number (Deal -> SHIPPED)', async () => {
+    // 1. Проверяем, что сделка оплачена (мы это сделали в тесте 5)
+    // 2. Отправляем трек-номер
+    await request(app.getHttpServer())
+      .post(`/trade/deals/${dealId}/shipment`)
+      .set('Authorization', `Bearer ${supplierUser.token}`)
+      .send({
+        trackingNumber: 'TEST-DELIVERED-123', // Специальный префикс для мока (если бы был интеграционный тест с адаптером)
+        carrier: 'CDEK'
+      })
+      .expect(201);
+
+    // 3. Проверяем статус сделки
+    const deal = await prisma.deal.findUnique({ where: { id: dealId } });
+    expect(deal.dealStatusId).toBe(4); // 4 = SHIPPED
+    
+    // 4. Проверяем создание отгрузки
+    const shipment = await prisma.shipment.findUnique({ where: { trackingNumber: 'TEST-DELIVERED-123' }});
+    expect(shipment).toBeDefined();
+    expect(shipment.dealId).toBe(dealId);
+  });
+
+  it('8. Buyer: Fail to Confirm Delivery (If not owner/wrong status)', async () => {
+    // Хакер пытается подтвердить
+    await request(app.getHttpServer())
+      .post(`/trade/deals/${dealId}/confirm`)
+      .set('Authorization', `Bearer ${hackerUser.token}`)
+      .expect(403);
+  });
+
+  it('9. Buyer: Confirm Delivery (Deal -> COMPLETED + Money Release)', async () => {
+    // Покупатель подтверждает приемку
+    await request(app.getHttpServer())
+      .post(`/trade/deals/${dealId}/confirm`)
+      .set('Authorization', `Bearer ${buyerUser.token}`)
+      .expect(201);
+
+    // 1. Проверяем статус сделки
+    const deal = await prisma.deal.findUnique({ where: { id: dealId } });
+    expect(deal.dealStatusId).toBe(5); // 5 = COMPLETED
+
+    // 2. Проверяем статус Эскроу счета
+    const escrow = await prisma.escrowAccount.findUnique({ where: { dealId } });
+    expect(escrow.escrowStatusId).toBe(3); // 3 = RELEASED (Деньги ушли продавцу)
+    
+    // 3. Проверяем баланс (депозит должен уменьшиться на сумму выплаты)
+    // В нашей логике release: amountDeposited = amountDeposited - payout.
+    // Если payout = total - fee, то останется fee (комиссия платформы).
+    // Total: 5000. Fee (2%): 100. Payout: 4900.
+    // Остаток: 5000 - 4900 = 100.
+    expect(Number(escrow.amountDeposited)).toBe(100); 
+
+    // 4. Проверяем транзакции
+    const transactions = await prisma.transaction.findMany({ where: { dealId } });
+    const releaseTx = transactions.find(t => t.transactionTypeId === 2); // 2 = RELEASE
+    expect(releaseTx).toBeDefined();
+    expect(Number(releaseTx.amount)).toBe(4900); // 5000 - 2%
+  });
+
+  it('10. Documents: Verify Act generation', async () => {
+    // Проверяем, что акт был создан автоматически
+    const act = await prisma.document.findFirst({
+      where: {
+        entityId: dealId,
+        entityType: 'deal',
+        // Мы мапили 'act' на 'Акт' в DocumentsService, но для теста ищем любой созданный после закрытия
+        documentType: { name: 'Акт' }
+      }
+    });
+    
+    expect(act).toBeDefined();
+    expect(act.uploadedById).toBe(1); // System user (мы передавали 1 в DealsService)
   });
 });
