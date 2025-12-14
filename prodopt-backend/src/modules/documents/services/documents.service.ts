@@ -1,8 +1,10 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common'; // Добавлены исключения
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { StorageService } from '../../../common/providers/storage.service';
 import { PdfGeneratorService } from './pdf-generator.service';
 
+// Расширяем типы документов
+export type DocTemplateType = 'invoice' | 'contract' | 'act' | 'upd';
 
 @Injectable()
 export class DocumentsService {
@@ -18,7 +20,7 @@ export class DocumentsService {
    * Генерирует документ, загружает в S3 и сохраняет метаданные в БД
    */
   async createDocument(
-    type: 'invoice' | 'contract', // Для примера, можно расширить
+    type: DocTemplateType, // Используем обновленный тип
     data: any,
     userId: number,
     entityType: 'deal' | 'company',
@@ -47,9 +49,19 @@ export class DocumentsService {
     // 3. Загрузка в S3
     const { url } = await this.storageService.upload(mockFile, 'documents');
 
-    // 4. Поиск ID типа документа и статуса (можно оптимизировать через кэш)
+    // 4. Поиск ID типа документа
+    // Маппинг ключа шаблона на название в БД (см. seed.ts)
+    const typeMap: Record<DocTemplateType, string> = {
+        invoice: 'Счет',
+        contract: 'Договор',
+        act: 'Акт',
+        upd: 'УПД'
+    };
+
+    const docTypeName = typeMap[type];
+    
     const docType = await this.prisma.documentType.findFirst({
-      where: { name: type === 'invoice' ? 'Счет' : 'Договор' },
+      where: { name: docTypeName },
     });
     
     // 5. Сохранение в БД
@@ -77,22 +89,17 @@ export class DocumentsService {
     }
 
     // Проверка прав:
-    // 1. Если это Админ (предположим roleId === 1 - это Admin, или проверка через Guard, но здесь логическая проверка)
+    // 1. Если это Админ (предположим roleId === 1 - это Admin)
     // 2. ИЛИ Если это владелец документа (uploadedBy)
-    // Примечание: В реальной системе роль лучше проверять через enum или константу
-    const isAdmin = userRole === 1; // Условно, зависит от вашей ролевой модели в БД (seed.ts)
+    const isAdmin = userRole === 1; 
     const isOwner = document.uploadedById === userId;
 
     if (!isAdmin && !isOwner) {
       throw new ForbiddenException('Нет прав на скачивание этого документа');
     }
 
-    // Извлекаем ключ из URL. 
-    // URL в БД: http://minio:9000/bucket/documents/file.pdf
-    // Нам нужен ключ: documents/file.pdf
+    // Извлекаем ключ из URL
     const urlParts = document.fileUrl.split('/');
-    // Берем последние 2 части (папка + файл)
-    // Внимание: это упрощенная логика. В продакшене лучше хранить key отдельно в БД.
     const key = urlParts.slice(-2).join('/');
 
     // Генерируем временную ссылку (действует 15 минут)
