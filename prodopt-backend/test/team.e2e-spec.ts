@@ -12,8 +12,8 @@ describe('Team Management (e2e)', () => {
   const adminEmail = `admin_${Date.now()}@team.test`;
   const employeeEmail = `employee_${Date.now()}@team.test`;
   
-  // ИСПРАВЛЕНИЕ: Уникальный ИНН (Ашан)
-  const validInn = '7728168971'; 
+  // ИСПРАВЛЕНИЕ: Уникальный ИНН 
+  const validInn = '5380162163'; 
   
   let adminToken: string;
   let companyId: number;

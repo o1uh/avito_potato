@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsNumber, IsDateString, ValidateNested, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsNumber, IsDateString, ValidateNested, IsArray, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -53,6 +53,11 @@ export class CreateDealFromOfferDto {
   @ApiProperty({ description: 'ID принятого коммерческого предложения' })
   @IsInt()
   offerId: number;
+
+  @ApiProperty({ description: 'Закрыть заявку после создания этой сделки?', default: false })
+  @IsOptional()
+  @IsBoolean()
+  closeRequest?: boolean; // <-- Новое поле
 }
 
 // Вспомогательный DTO для элементов сделки (если создается вручную, не через Offer)

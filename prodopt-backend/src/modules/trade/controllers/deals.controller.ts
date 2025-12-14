@@ -19,7 +19,7 @@ export class DealsController {
     @CurrentUser('companyId') companyId: number,
     @Body() dto: CreateDealFromOfferDto,
   ) {
-    return this.dealsService.createFromOffer(dto.offerId, companyId);
+    return this.dealsService.createFromOffer(dto, companyId);
   }
 
   @Post(':id/accept')

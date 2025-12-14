@@ -22,16 +22,37 @@ describe('DealsService & DB Triggers', () => {
   const cleanupCompany = async (inn: string) => {
     const company = await prisma.company.findUnique({ where: { inn } });
     if (company) {
-      // 1. Удаляем сделки, связанные с компанией
-      await prisma.deal.deleteMany({
+      // Находим ID сделок этой компании
+      const deals = await prisma.deal.findMany({
         where: {
           OR: [
             { buyerCompanyId: company.id },
             { supplierCompanyId: company.id }
           ]
-        }
+        },
+        select: { id: true }
       });
-      // 2. Удаляем саму компанию (пользователи удалятся каскадно, если настроено в схеме)
+      const dealIds = deals.map(d => d.id);
+
+      if (dealIds.length > 0) {
+        // Удаляем зависимости (Эскроу, Транзакции, Позиции)
+        // Игнорируем ошибки, если записей нет
+        await prisma.transaction.deleteMany({ where: { dealId: { in: dealIds } } });
+        await prisma.escrowAccount.deleteMany({ where: { dealId: { in: dealIds } } });
+        await prisma.dealItem.deleteMany({ where: { dealId: { in: dealIds } } });
+
+        // Удаляем сами сделки
+        await prisma.deal.deleteMany({ where: { id: { in: dealIds } } });
+      }
+
+      // Удаляем офферы и запросы (чтобы не мешали удалению компании)
+      await prisma.commercialOffer.deleteMany({ where: { supplierCompanyId: company.id } });
+      await prisma.purchaseRequest.deleteMany({ where: { buyerCompanyId: company.id } });
+
+      // Удаляем сотрудников (если каскад не сработал)
+      await prisma.user.deleteMany({ where: { companyId: company.id } });
+
+      // Удаляем саму компанию
       await prisma.company.delete({ where: { id: company.id } });
     }
   };

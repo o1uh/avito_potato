@@ -1,9 +1,18 @@
 import { Controller, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { IsNumber, Min } from 'class-validator'; 
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { EscrowService } from '../../finance/services/escrow.service';
 import { DealsService } from '../services/deals.service';
 import { DealStatus } from '../utils/deal-state-machine';
+
+// Создаем DTO для валидации входных данных
+class DepositDto {
+  @ApiProperty({ example: 50000, description: 'Сумма пополнения' })
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+}
 
 @ApiTags('Dev Tools (Test Only)')
 @ApiBearerAuth()
@@ -19,22 +28,16 @@ export class DevTradeController {
   @ApiOperation({ summary: '[DEV] Эмуляция оплаты сделки (переход в PAID)' })
   async manualDeposit(
     @Param('id', ParseIntPipe) dealId: number,
-    @Body('amount') amount: number,
+    @Body() dto: DepositDto, // Используем DTO вместо @Body('amount')
   ) {
-    // 1. Зачисляем деньги на эскроу (вызов процедуры)
-    await this.escrowService.deposit(dealId, amount);
+    // Используем dto.amount
+    await this.escrowService.deposit(dealId, dto.amount);
 
-    // 2. Проверяем баланс (в реальной системе это делает вебхук или процедура сама триггерит событие)
     const balance = await this.escrowService.getBalance(dealId);
     
-    // 3. Если сумма полная, переводим сделку в PAID
-    // Внимание: В реальной системе это должно быть защищено строже
+    // Проверка полной оплаты
     if (Number(balance.amountDeposited) >= Number(balance.totalAmount)) {
-       // userId и companyId ставим заглушки или берем из контекста, 
-       // так как это системное действие
-       // В данном случае используем прямой update или метод сервиса с правами системы
-       // Для теста просто обновляем статус через Prisma, чтобы не ломать логику прав в dealsService
-       const prisma = (this.dealsService as any).prisma; // Хаки для теста :)
+       const prisma = (this.dealsService as any).prisma;
        await prisma.deal.update({
          where: { id: dealId },
          data: { dealStatusId: DealStatus.PAID }

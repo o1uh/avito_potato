@@ -5,6 +5,7 @@ import { DocumentsService } from '../../documents/services/documents.service';
 import { NotificationsService } from '../../communication/services/notifications.service';
 import { DealStateMachine, DealStatus } from '../utils/deal-state-machine';
 import { Prisma } from '@prisma/client';
+import { CreateDealFromOfferDto } from '../dto/trade.dto';
 
 @Injectable()
 export class DealsService {
@@ -17,9 +18,9 @@ export class DealsService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async createFromOffer(offerId: number, buyerCompanyId: number) {
+  async createFromOffer(dto: CreateDealFromOfferDto, buyerCompanyId: number) {
     const offer = await this.prisma.commercialOffer.findUnique({
-      where: { id: offerId },
+      where: { id: dto.offerId },
       include: { purchaseRequest: true },
     });
 
@@ -29,12 +30,38 @@ export class DealsService {
       throw new ForbiddenException('Вы не являетесь автором запроса');
     }
 
+    // Если оффер уже принят или отклонен — нельзя создать сделку (защита от дублей)
+    if (offer.offerStatusId !== 1) { // 1 = Sent
+        throw new BadRequestException('Это коммерческое предложение уже обработано (принято или отклонено)');
+    }
+
     const deal = await this.prisma.$transaction(async (tx) => {
+      // Помечаем текущее КП как принятое (Accepted = 2)
       await tx.commercialOffer.update({
         where: { id: offer.id },
-        data: { offerStatusId: 2 }, // Accepted
+        data: { offerStatusId: 2 }, 
       });
 
+      // Если пользователь попросил закрыть заявку (галочка на фронте)
+      if (dto.closeRequest) {
+          // Закрываем саму заявку (Status 2 = Closed)
+          await tx.purchaseRequest.update({
+              where: { id: offer.purchaseRequestId },
+              data: { requestStatusId: 2 } 
+          });
+
+          // Опционально: Отклоняем все остальные активные офферы по этой заявке
+          await tx.commercialOffer.updateMany({
+              where: {
+                  purchaseRequestId: offer.purchaseRequestId,
+                  id: { not: offer.id }, // Кроме текущего
+                  offerStatusId: 1 // Только те, что в статусе "Sent"
+              },
+              data: { offerStatusId: 3 } // 3 = Rejected
+          });
+      }
+
+      // Создаем сделку
       const newDeal = await tx.deal.create({
         data: {
           buyerCompanyId,

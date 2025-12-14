@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateOfferDto, NegotiateOfferDto } from '../dto/trade.dto';
 
@@ -47,5 +47,38 @@ export class OffersService {
         deliveryConditions: dto.deliveryConditions,
       },
     });
+  }
+
+  async findAll(companyId: number, type: 'sent' | 'received') {
+    if (type === 'sent') {
+      // Исходящие: где я поставщик
+      return this.prisma.commercialOffer.findMany({
+        where: { supplierCompanyId: companyId },
+        include: {
+          purchaseRequest: {
+            include: { buyer: { select: { id: true, name: true } } } // Чтобы видеть, кому отправили
+          },
+          status: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } else if (type === 'received') {
+      // Входящие: где я автор запроса (покупатель)
+      return this.prisma.commercialOffer.findMany({
+        where: {
+          purchaseRequest: {
+            buyerCompanyId: companyId, // Связь через запрос
+          },
+        },
+        include: {
+          supplier: { select: { id: true, name: true, rating: true } }, // Чтобы видеть, кто прислал
+          purchaseRequest: true, // Контекст запроса
+          status: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    } else {
+      throw new BadRequestException('Неверный параметр type. Используйте sent или received');
+    }
   }
 }

@@ -1,5 +1,5 @@
-import { Controller, Post, Put, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Post, Put, Get, Body, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { OffersService } from '../services/offers.service';
@@ -30,4 +30,15 @@ export class OffersController {
   ) {
     return this.offersService.negotiate(id, companyId, dto);
   }
+
+  @Get()
+  @ApiOperation({ summary: 'Получить список КП (Входящие/Исходящие)' })
+  @ApiQuery({ name: 'type', enum: ['sent', 'received'], description: 'sent - отправленные мной, received - полученные мной' })
+  async list(
+    @CurrentUser('companyId') companyId: number,
+    @Query('type') type: 'sent' | 'received',
+  ) {
+    return this.offersService.findAll(companyId, type);
+  }
+
 }
