@@ -308,8 +308,6 @@ model CooperationRequestStatus {
   @@map("cooperation_request_statuses")
 }
 
-// ... (после модели CooperationRequestStatus)
-
 model DealStatus {
   id   Int    @id @default(autoincrement())
   name String @unique @db.VarChar(50)
@@ -370,6 +368,8 @@ model Deal {
   escrowAccount EscrowAccount?
   transactions  Transaction[]
   items         DealItem[] // Товары в сделке
+  shipments     Shipment[] 
+
 
   @@map("deals")
 }
@@ -425,4 +425,31 @@ model Transaction {
   status              TransactionStatus @relation(fields: [transactionStatusId], references: [id])
 
   @@map("transactions")
+}
+
+// --- Раздел 6: Логистика (Этап 10) ---
+
+model Shipment {
+  id               Int       @id @default(autoincrement())
+  trackingNumber   String    @unique @map("tracking_number") @db.VarChar(100)
+  logisticsService String?   @map("logistics_service") @db.VarChar(100) // "CDEK", "Dellin"
+  sentAt           DateTime? @map("sent_at")
+  expectedDeliveryDate DateTime? @map("expected_delivery_date") @db.Date
+  
+  dealId           Int       @map("deal_id")
+  deliveryStatusId Int       @map("delivery_status_id")
+
+  deal           Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deliveryStatus DeliveryStatus @relation(fields: [deliveryStatusId], references: [id])
+
+  @@map("shipments")
+}
+
+model DeliveryStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50) // "In Transit", "Delivered", "Problem"
+
+  shipments Shipment[]
+
+  @@map("delivery_statuses")
 }
