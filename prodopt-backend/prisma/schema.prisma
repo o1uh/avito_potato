@@ -62,6 +62,7 @@ model User {
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   createdAt             DateTime  @default(now()) @map("created_at")
   uploadedDocuments     Document[] // Связь с документами
+  statusChanges         StatusHistory[]
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -452,4 +453,24 @@ model DeliveryStatus {
   shipments Shipment[]
 
   @@map("delivery_statuses")
+}
+
+// --- Раздел 7: Логирование и История ---
+
+model StatusHistory {
+  id              Int      @id @default(autoincrement())
+  entityType      String   @map("entity_type") @db.VarChar(50) // 'DEAL', 'PRODUCT'
+  entityId        Int      @map("entity_id")
+  
+  oldStatusId     Int?     @map("old_status_id")
+  newStatusId     Int      @map("new_status_id")
+  
+  initiatorUserId Int?     @map("initiator_user_id")
+  changedAt       DateTime @default(now()) @map("changed_at")
+
+  // Опциональная связь, если захотим делать .include()
+  initiator       User?    @relation(fields: [initiatorUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("status_history")
 }
