@@ -211,6 +211,22 @@ async function main() {
       }
   }
 
+  // 16. Статусы доставки (Logistics)
+  const deliveryStatuses = [
+      { id: 1, name: 'In Transit' }, // В пути
+      { id: 2, name: 'Delivered' },  // Доставлено
+      { id: 3, name: 'Problem' }     // Проблема
+  ];
+  
+  for (const s of deliveryStatuses) {
+      // Используем upsert, чтобы скрипт можно было запускать много раз
+      await prisma.deliveryStatus.upsert({
+          where: { id: s.id },
+          update: {},
+          create: { id: s.id, name: s.name }
+      });
+  }
+
   console.log('✅ Seeding finished.');
 }
 

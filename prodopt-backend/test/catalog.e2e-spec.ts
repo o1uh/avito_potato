@@ -113,6 +113,8 @@ describe('Catalog Module (e2e)', () => {
   });
 
   it('2. Wait for Sync (Elastic)', async () => {
+    await new Promise((r) => setTimeout(r, 1000));
+    await elastic.indices.refresh({ index: 'products' });
     await waitForIndexRefresh(createdProductId);
   }, 20000);
 

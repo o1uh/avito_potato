@@ -62,6 +62,7 @@ model User {
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   createdAt             DateTime  @default(now()) @map("created_at")
   uploadedDocuments     Document[] // Связь с документами
+  statusChanges         StatusHistory[]
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -308,8 +309,6 @@ model CooperationRequestStatus {
   @@map("cooperation_request_statuses")
 }
 
-// ... (после модели CooperationRequestStatus)
-
 model DealStatus {
   id   Int    @id @default(autoincrement())
   name String @unique @db.VarChar(50)
@@ -370,6 +369,8 @@ model Deal {
   escrowAccount EscrowAccount?
   transactions  Transaction[]
   items         DealItem[] // Товары в сделке
+  shipments     Shipment[] 
+
 
   @@map("deals")
 }
@@ -425,4 +426,51 @@ model Transaction {
   status              TransactionStatus @relation(fields: [transactionStatusId], references: [id])
 
   @@map("transactions")
+}
+
+// --- Раздел 6: Логистика (Этап 10) ---
+
+model Shipment {
+  id               Int       @id @default(autoincrement())
+  trackingNumber   String    @unique @map("tracking_number") @db.VarChar(100)
+  logisticsService String?   @map("logistics_service") @db.VarChar(100) // "CDEK", "Dellin"
+  sentAt           DateTime? @map("sent_at")
+  expectedDeliveryDate DateTime? @map("expected_delivery_date") @db.Date
+  
+  dealId           Int       @map("deal_id")
+  deliveryStatusId Int       @map("delivery_status_id")
+
+  deal           Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deliveryStatus DeliveryStatus @relation(fields: [deliveryStatusId], references: [id])
+
+  @@map("shipments")
+}
+
+model DeliveryStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50) // "In Transit", "Delivered", "Problem"
+
+  shipments Shipment[]
+
+  @@map("delivery_statuses")
+}
+
+// --- Раздел 7: Логирование и История ---
+
+model StatusHistory {
+  id              Int      @id @default(autoincrement())
+  entityType      String   @map("entity_type") @db.VarChar(50) // 'DEAL', 'PRODUCT'
+  entityId        Int      @map("entity_id")
+  
+  oldStatusId     Int?     @map("old_status_id")
+  newStatusId     Int      @map("new_status_id")
+  
+  initiatorUserId Int?     @map("initiator_user_id")
+  changedAt       DateTime @default(now()) @map("changed_at")
+
+  // Опциональная связь, если захотим делать .include()
+  initiator       User?    @relation(fields: [initiatorUserId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("status_history")
 }

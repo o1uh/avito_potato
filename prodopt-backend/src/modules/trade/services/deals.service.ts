@@ -158,4 +158,61 @@ export class DealsService {
     }
     return deal;
   }
+
+  async confirmDelivery(dealId: number, buyerCompanyId: number) {
+    const deal = await this.prisma.deal.findUnique({ 
+        where: { id: dealId },
+        include: { buyer: true, supplier: true } // Подгружаем данные для документов
+    });
+    
+    if (!deal) throw new NotFoundException('Сделка не найдена');
+
+    // 1. Проверка прав
+    if (deal.buyerCompanyId !== buyerCompanyId) {
+      throw new ForbiddenException('Только покупатель может подтвердить приемку');
+    }
+
+    // 2. Проверка статуса
+    if (deal.dealStatusId !== DealStatus.SHIPPED) {
+      throw new BadRequestException('Нельзя подтвердить приемку, если товар не был отгружен');
+    }
+
+    // 3. Выплата денег поставщику
+    await this.escrowService.release(dealId);
+
+    // 4. Генерация закрывающих документов (Акт выполненных работ / УПД)
+    // Генерируем "Акт" (или УПД) от лица Поставщика для Покупателя
+    const docData = {
+        number: `ACT-${deal.id}`,
+        date: new Date().toLocaleDateString(),
+        totalAmount: Number(deal.totalAmount),
+        supplier: { 
+            name: deal.supplier.name, 
+            inn: deal.supplier.inn, 
+            address: 'Адрес поставщика' // В идеале брать из таблицы адресов
+        },
+        buyer: { 
+            name: deal.buyer.name, 
+            inn: deal.buyer.inn, 
+            address: 'Адрес покупателя' 
+        },
+        items: [] // Можно подтянуть dealItems, если нужно детально
+    };
+
+    // Генерируем и сохраняем документ.
+    // userId берем 1 (System) или можно передать ID текущего юзера в метод
+    try {
+        await this.documentsService.createDocument('act', docData, 1, 'deal', deal.id);
+    } catch (e) {
+        this.logger.error(`Failed to generate closing documents for deal ${dealId}`, e);
+        // Не роняем транзакцию, если документ не сгенерировался, но логируем ошибку
+    }
+
+    // 5. Обновление статуса
+    return this.prisma.deal.update({
+      where: { id: dealId },
+      data: { dealStatusId: DealStatus.COMPLETED },
+      include: { status: true },
+    });
+  }
 }
