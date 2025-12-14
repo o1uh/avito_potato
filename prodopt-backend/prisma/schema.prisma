@@ -308,6 +308,45 @@ model CooperationRequestStatus {
   @@map("cooperation_request_statuses")
 }
 
+// ... (после модели CooperationRequestStatus)
+
+model DealStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50)
+
+  deals Deal[]
+
+  @@map("deal_statuses")
+}
+
+model EscrowAccountStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50)
+
+  // Связь с EscrowAccount (нужно будет обновить модель EscrowAccount ниже)
+  escrowAccounts EscrowAccount[]
+
+  @@map("escrow_account_statuses")
+}
+
+model TransactionType {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50)
+
+  transactions Transaction[]
+
+  @@map("transaction_types")
+}
+
+model TransactionStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50)
+
+  transactions Transaction[]
+
+  @@map("transaction_statuses")
+}
+
 model Deal {
   id                Int  @id @default(autoincrement())
   buyerCompanyId    Int  @map("buyer_company_id")
@@ -325,7 +364,9 @@ model Deal {
   buyer           Company          @relation("BuyerDeals", fields: [buyerCompanyId], references: [id])
   supplier        Company          @relation("SupplierDeals", fields: [supplierCompanyId], references: [id])
   commercialOffer CommercialOffer? @relation(fields: [commercialOfferId], references: [id])
+  status            DealStatus @relation(fields: [dealStatusId], references: [id])
 
+  
   escrowAccount EscrowAccount?
   transactions  Transaction[]
   items         DealItem[] // Товары в сделке
@@ -361,7 +402,10 @@ model EscrowAccount {
   escrowStatusId    Int     @default(1) @map("escrow_status_id") // 1=Waiting, 2=Funded, 3=Released, 4=Refunded
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
+
   deal Deal @relation(fields: [dealId], references: [id])
+  status            EscrowAccountStatus @relation(fields: [escrowStatusId], references: [id])
+
 
   @@map("escrow_accounts")
 }
@@ -377,6 +421,8 @@ model Transaction {
   processedAt         DateTime? @map("processed_at")
 
   deal Deal @relation(fields: [dealId], references: [id])
+  type                TransactionType @relation(fields: [transactionTypeId], references: [id])
+  status              TransactionStatus @relation(fields: [transactionStatusId], references: [id])
 
   @@map("transactions")
 }

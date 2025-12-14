@@ -9,7 +9,7 @@ DECLARE
     v_escrow_account RECORD;
     v_transaction_type_id INT;
 BEGIN
-    -- 1. Блокировка строки (таблица escrow_accounts в нижнем регистре)
+    -- 1. Блокировка строки
     SELECT * INTO v_escrow_account 
     FROM escrow_accounts 
     WHERE deal_id = p_deal_id 
@@ -22,18 +22,19 @@ BEGIN
     -- 2. Логика операций
     CASE p_operation_type
         WHEN 'DEPOSIT' THEN
+            -- COALESCE защищает от NULL, превращая его в 0 перед сложением
             UPDATE escrow_accounts
-            SET amount_deposited = amount_deposited + p_amount,
+            SET amount_deposited = COALESCE(amount_deposited, 0) + p_amount,
                 updated_at = NOW(),
                 escrow_status_id = CASE 
-                    WHEN (amount_deposited + p_amount) >= total_amount THEN 2 
+                    WHEN (COALESCE(amount_deposited, 0) + p_amount) >= total_amount THEN 2 
                     ELSE 1 
                 END
             WHERE deal_id = p_deal_id;
             v_transaction_type_id := 1; 
 
         WHEN 'RELEASE' THEN
-            IF v_escrow_account.amount_deposited < p_amount THEN
+            IF COALESCE(v_escrow_account.amount_deposited, 0) < p_amount THEN
                 RAISE EXCEPTION 'Insufficient funds: deposited %, required %', v_escrow_account.amount_deposited, p_amount;
             END IF;
 
@@ -45,7 +46,7 @@ BEGIN
             v_transaction_type_id := 2;
 
         WHEN 'REFUND' THEN
-            IF v_escrow_account.amount_deposited < p_amount THEN
+            IF COALESCE(v_escrow_account.amount_deposited, 0) < p_amount THEN
                 RAISE EXCEPTION 'Insufficient funds for refund';
             END IF;
 
@@ -60,7 +61,7 @@ BEGIN
             RAISE EXCEPTION 'Unknown operation type: %', p_operation_type;
     END CASE;
 
-    -- 3. Запись в лог (таблица transactions)
+    -- 3. Запись в лог
     INSERT INTO transactions (
         amount, 
         deal_id, 

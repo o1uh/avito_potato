@@ -112,6 +112,105 @@ async function main() {
     });
   }
 
+  // 9. Статусы запросов (RFQ)
+  const reqStatuses = ['New', 'Closed'];
+  for (const name of reqStatuses) {
+    await prisma.requestStatus.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+  // 10. Статусы офферов
+  const offerStatuses = ['Sent', 'Accepted', 'Rejected'];
+  for (const name of offerStatuses) {
+    await prisma.offerStatus.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+  // 11. Статусы сделок (DealStatus)
+  // ВАЖНО: ID должны совпадать с DealStatus enum (utils/deal-state-machine.ts)
+  // 1=CREATED, 2=AGREED, 3=PAID, 4=SHIPPED, 5=COMPLETED, 6=CANCELED, 7=DISPUTE
+  const dealStatuses = [
+    { id: 1, name: 'Created' },
+    { id: 2, name: 'Agreed' },
+    { id: 3, name: 'Paid' },
+    { id: 4, name: 'Shipped' },
+    { id: 5, name: 'Completed' },
+    { id: 6, name: 'Canceled' },
+    { id: 7, name: 'Dispute' },
+  ];
+  
+  for (const s of dealStatuses) {
+    // Используем upsert по ID, чтобы гарантировать совпадение с Enum
+    // Т.к. поле name уникально, а id автоинкремент, upsert по id может не сработать если есть конфликт имен.
+    // Но так как это seed, предполагаем чистоту или совпадение.
+    // Проще найти по имени, но тогда ID могут уехать.
+    // Для надежности в тестах лучше создавать, если пусто. 
+    // Но тут попробуем жестко задать ID при создании.
+    
+    const existing = await prisma.dealStatus.findFirst({ where: { id: s.id } });
+    if (!existing) {
+        // Если ID занят другим именем (вряд ли), это проблема.
+        // Пытаемся создать с конкретным ID
+        await prisma.dealStatus.create({ data: { id: s.id, name: s.name } });
+    }
+  }
+
+  // 12. Статусы Cooperation Request
+  const coopStatuses = ['Pending', 'Approved', 'Rejected'];
+  for (const name of coopStatuses) {
+    await prisma.cooperationRequestStatus.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+  
+  // 13. Статусы Эскроу
+  const escrowStatuses = [
+      { id: 1, name: 'Waiting Payment' },
+      { id: 2, name: 'Funded' },
+      { id: 3, name: 'Released' },
+      { id: 4, name: 'Refunded' }
+  ];
+  for (const s of escrowStatuses) {
+      const existing = await prisma.escrowAccountStatus.findFirst({ where: { id: s.id } });
+      if (!existing) {
+          await prisma.escrowAccountStatus.create({ data: { id: s.id, name: s.name } });
+      }
+  }
+
+  // 14. Типы транзакций
+  const txTypes = [
+      { id: 1, name: 'Deposit' },
+      { id: 2, name: 'Release' },
+      { id: 3, name: 'Refund' }
+  ];
+  for (const s of txTypes) {
+      const existing = await prisma.transactionType.findFirst({ where: { id: s.id } });
+      if (!existing) {
+          await prisma.transactionType.create({ data: { id: s.id, name: s.name } });
+      }
+  }
+  
+  // 15. Статусы транзакций
+  const txStatuses = [
+      { id: 1, name: 'Pending' },
+      { id: 2, name: 'Success' },
+      { id: 3, name: 'Fail' }
+  ];
+  for (const s of txStatuses) {
+      const existing = await prisma.transactionStatus.findFirst({ where: { id: s.id } });
+      if (!existing) {
+          await prisma.transactionStatus.create({ data: { id: s.id, name: s.name } });
+      }
+  }
+
   console.log('✅ Seeding finished.');
 }
 
