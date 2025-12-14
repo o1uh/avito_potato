@@ -15,6 +15,8 @@ import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog/catalog.module'; 
 import { DocumentsModule } from './modules/documents/documents.module'; 
 import { FinanceModule } from './modules/finance/finance.module';
+import { NetworkingModule } from './modules/networking/networking.module';
+import { TradeModule } from './modules/trade/trade.module';
 
 
 @Module({
@@ -45,6 +47,8 @@ import { FinanceModule } from './modules/finance/finance.module';
     CatalogModule, 
     DocumentsModule,
     FinanceModule,
+    NetworkingModule,
+    TradeModule,
   ],
   providers: [
     {
