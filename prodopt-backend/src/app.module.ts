@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog/catalog.module'; 
 import { DocumentsModule } from './modules/documents/documents.module'; 
+import { FinanceModule } from './modules/finance/finance.module';
 
 
 @Module({
@@ -43,6 +44,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
     UsersModule,
     CatalogModule, 
     DocumentsModule,
+    FinanceModule,
   ],
   providers: [
     {
