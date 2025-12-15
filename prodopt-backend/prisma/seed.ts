@@ -227,6 +227,29 @@ async function main() {
       });
   }
 
+  // 17. Статусы споров
+  const disputeStatuses = [
+      { id: 1, name: 'Open' },
+      { id: 2, name: 'Closed' }
+  ];
+  for (const s of disputeStatuses) {
+      await prisma.disputeStatus.upsert({
+          where: { id: s.id }, update: {}, create: { id: s.id, name: s.name }
+      });
+  }
+
+  // 18. Статусы отзывов
+  const reviewStatuses = [
+      { id: 1, name: 'On Moderation' },
+      { id: 2, name: 'Published' },
+      { id: 3, name: 'Rejected' }
+  ];
+  for (const s of reviewStatuses) {
+      await prisma.reviewStatus.upsert({
+          where: { id: s.id }, update: {}, create: { id: s.id, name: s.name }
+      });
+  }
+
   console.log('✅ Seeding finished.');
 }
 

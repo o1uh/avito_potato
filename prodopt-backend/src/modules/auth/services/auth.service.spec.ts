@@ -117,7 +117,10 @@ describe('AuthService', () => {
       const user = { 
         id: 1, 
         email: 'test@example.com', 
-        passwordHash: 'hashed_password' 
+        passwordHash: 'hashed_password',
+        isActive: true, 
+        companyId: 1, 
+        roleInCompanyId: 1 
       };
 
       mockUsersService.findByEmail.mockResolvedValue(user);

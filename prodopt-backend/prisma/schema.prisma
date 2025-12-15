@@ -26,20 +26,30 @@ model Company {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
+  // Основные связи
   users            User[]
   suppliedProducts Product[]
   purchaseRequests PurchaseRequest[] @relation("BuyerRequests")
   openRequests     PurchaseRequest[] @relation("SupplierOpenRequests")
-  paymentDetails   PaymentDetail[] // Обратная связь для банковских счетов
+  paymentDetails   PaymentDetail[] 
 
+  // Networking
   sentCooperationRequests     CooperationRequest[] @relation("Initiator")
   receivedCooperationRequests CooperationRequest[] @relation("Recipient")
 
+  // Trade
   commercialOffers CommercialOffer[]
   buyerDeals       Deal[]            @relation("BuyerDeals")
   supplierDeals    Deal[]            @relation("SupplierDeals")
 
-  // Связи со справочниками
+  // Governance & Analytics (Этап 13)
+  statistics       CompanyStatistics? // 1-to-1
+  filedDisputes    Dispute[]          @relation("Claimant")
+  defendedDisputes Dispute[]          @relation("Defendant")
+  authoredReviews  CompanyReview[]    @relation("ReviewAuthor")
+  receivedReviews  CompanyReview[]    @relation("ReviewRecipient")
+
+  // Справочники
   organizationType   OrganizationType    @relation(fields: [organizationTypeId], references: [id])
   verificationStatus VerificationStatus? @relation(fields: [verificationStatusId], references: [id])
 
@@ -61,8 +71,13 @@ model User {
   refreshTokenHash      String?   @unique @map("refresh_token_hash")
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   createdAt             DateTime  @default(now()) @map("created_at")
-  uploadedDocuments     Document[] // Связь с документами
+  
+  uploadedDocuments     Document[] 
   statusChanges         StatusHistory[]
+  
+  // Модерация и Отзывы
+  moderatedProducts     Product[]       @relation("ProductModerator")
+  authoredProductReviews ProductReview[]
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -76,14 +91,19 @@ model Product {
   supplierCompanyId Int      @map("supplier_company_id")
   productCategoryId Int      @map("product_category_id")
   productStatusId   Int      @map("product_status_id")
+  
+  moderatorId       Int?     @map("moderator_id")
+  
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
-  supplier Company          @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
-  category ProductCategory  @relation(fields: [productCategoryId], references: [id])
-  status   ProductStatus    @relation(fields: [productStatusId], references: [id])
-  variants ProductVariant[]
-  images   ProductImage[]
+  supplier  Company          @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
+  category  ProductCategory  @relation(fields: [productCategoryId], references: [id])
+  status    ProductStatus    @relation(fields: [productStatusId], references: [id])
+  moderator User?            @relation("ProductModerator", fields: [moderatorId], references: [id]) // Связь с модератором
+  
+  variants  ProductVariant[]
+  images    ProductImage[]
 
   @@index([name])
   @@map("products")
@@ -114,7 +134,6 @@ model ProductVariant {
   product         Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   measurementUnit MeasurementUnit @relation(fields: [measurementUnitId], references: [id])
   
-  // ДОБАВЛЕНО: Обратная связь для DealItem
   dealItems       DealItem[]
 
   @@index([sku])
@@ -129,18 +148,17 @@ model PurchaseRequest {
   supplierCompanyId Int?     @map("supplier_company_id")
   createdAt         DateTime @default(now()) @map("created_at")
 
-  // Связи
-  buyer  Company           @relation("BuyerRequests", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
-  supplier Company?        @relation("SupplierOpenRequests", fields: [supplierCompanyId], references: [id])
-  status RequestStatus     @relation(fields: [requestStatusId], references: [id])
-  offers CommercialOffer[]
+  buyer    Company           @relation("BuyerRequests", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
+  supplier Company?          @relation("SupplierOpenRequests", fields: [supplierCompanyId], references: [id])
+  status   RequestStatus     @relation(fields: [requestStatusId], references: [id])
+  offers   CommercialOffer[]
 
   @@map("purchase_requests")
 }
 
 model RequestStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "New", "Closed"
+  name String @unique @db.VarChar(50) 
 
   requests PurchaseRequest[]
 
@@ -161,14 +179,14 @@ model CommercialOffer {
   supplier        Company         @relation(fields: [supplierCompanyId], references: [id], onDelete: Cascade)
   status          OfferStatus     @relation(fields: [offerStatusId], references: [id])
 
-  deal Deal? // Связь со сделкой (если принят)
+  deal Deal? 
 
   @@map("commercial_offers")
 }
 
 model OfferStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "Sent", "Accepted", "Rejected"
+  name String @unique @db.VarChar(50) 
 
   offers CommercialOffer[]
 
@@ -179,7 +197,7 @@ model OfferStatus {
 
 model OrganizationType {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "ООО", "ИП"
+  name String @unique @db.VarChar(50) 
 
   companies Company[]
 
@@ -188,7 +206,7 @@ model OrganizationType {
 
 model VerificationStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "Не верифицирован", "Верифицирован"
+  name String @unique @db.VarChar(50) 
 
   companies Company[]
 
@@ -209,7 +227,7 @@ model ProductCategory {
 
 model MeasurementUnit {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(20) // "кг", "шт", "литр"
+  name String @unique @db.VarChar(20)
 
   productVariants ProductVariant[]
 
@@ -218,7 +236,7 @@ model MeasurementUnit {
 
 model ProductStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "Черновик", "Опубликован"
+  name String @unique @db.VarChar(50)
 
   products Product[]
 
@@ -244,13 +262,13 @@ model PaymentDetail {
 
 model Document {
   id               Int      @id @default(autoincrement())
-  entityType       String   @map("entity_type") @db.VarChar(50) // 'deal', 'company', 'product'
+  entityType       String   @map("entity_type") @db.VarChar(50) 
   entityId         Int      @map("entity_id")
-  fileUrl          String   @map("file_url") @db.VarChar(255) // Ссылка на S3
+  fileUrl          String   @map("file_url") @db.VarChar(255) 
   documentTypeId   Int      @map("document_type_id")
   documentStatusId Int      @map("document_status_id") @default(1)
 
-  uploadedById Int      @map("uploaded_by_id") // Кто загрузил или инициировал генерацию
+  uploadedById Int      @map("uploaded_by_id") 
   createdAt    DateTime @default(now()) @map("created_at")
 
   documentType   DocumentType   @relation(fields: [documentTypeId], references: [id])
@@ -261,11 +279,9 @@ model Document {
   @@map("documents")
 }
 
-// --- Справочники для документов ---
-
 model DocumentType {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(100) // "Договор", "Счет", "УПД"
+  name String @unique @db.VarChar(100) 
 
   documents Document[]
 
@@ -274,14 +290,14 @@ model DocumentType {
 
 model DocumentStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "Создан", "Подписан", "Архив"
+  name String @unique @db.VarChar(50)
 
   documents Document[]
 
   @@map("document_statuses")
 }
 
-// --- Раздел: Networking (Новое) ---
+// --- Раздел: Networking ---
 
 model CooperationRequest {
   id                   Int    @id @default(autoincrement())
@@ -302,7 +318,7 @@ model CooperationRequest {
 
 model CooperationRequestStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "Pending", "Approved", "Rejected"
+  name String @unique @db.VarChar(50)
 
   requests CooperationRequest[]
 
@@ -322,7 +338,6 @@ model EscrowAccountStatus {
   id   Int    @id @default(autoincrement())
   name String @unique @db.VarChar(50)
 
-  // Связь с EscrowAccount (нужно будет обновить модель EscrowAccount ниже)
   escrowAccounts EscrowAccount[]
 
   @@map("escrow_account_statuses")
@@ -350,7 +365,7 @@ model Deal {
   id                Int  @id @default(autoincrement())
   buyerCompanyId    Int  @map("buyer_company_id")
   supplierCompanyId Int  @map("supplier_company_id")
-  commercialOfferId Int? @unique @map("commercial_offer_id") // Ссылка на КП
+  commercialOfferId Int? @unique @map("commercial_offer_id") 
 
   totalAmount   Decimal @map("total_amount") @db.Decimal(12, 2)
   dealStatusId  Int     @map("deal_status_id")
@@ -359,18 +374,19 @@ model Deal {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  // Связи
   buyer           Company          @relation("BuyerDeals", fields: [buyerCompanyId], references: [id])
   supplier        Company          @relation("SupplierDeals", fields: [supplierCompanyId], references: [id])
   commercialOffer CommercialOffer? @relation(fields: [commercialOfferId], references: [id])
-  status            DealStatus @relation(fields: [dealStatusId], references: [id])
+  status          DealStatus       @relation(fields: [dealStatusId], references: [id])
 
+  escrowAccount   EscrowAccount?
+  transactions    Transaction[]
+  items           DealItem[] 
+  shipments       Shipment[] 
   
-  escrowAccount EscrowAccount?
-  transactions  Transaction[]
-  items         DealItem[] // Товары в сделке
-  shipments     Shipment[] 
-
+  // Governance
+  disputes        Dispute[]
+  companyReviews  CompanyReview[]
 
   @@map("deals")
 }
@@ -380,15 +396,16 @@ model DealItem {
   dealId           Int      @map("deal_id")
   productVariantId Int      @map("product_variant_id")
   quantity         Int
-  pricePerUnit     Decimal? @map("price_per_unit") @db.Decimal(10, 2) // Заполняется триггером
+  pricePerUnit     Decimal? @map("price_per_unit") @db.Decimal(10, 2) 
 
-  // Снапшоты данных на момент сделки (заполняются триггером)
   productNameAtDealMoment     String? @map("product_name_at_deal_moment") @db.VarChar(255)
   variantNameAtDealMoment     String? @map("variant_name_at_deal_moment") @db.VarChar(255)
   measurementUnitAtDealMoment String? @map("measurement_unit_at_deal_moment") @db.VarChar(20)
 
   deal           Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  
+  productReview  ProductReview? // Обратная связь 1-к-1 или 1-к-N (здесь 1-к-1 логичнее)
 
   @@map("deal_items")
 }
@@ -400,13 +417,11 @@ model EscrowAccount {
   totalAmount       Decimal @map("total_amount") @db.Decimal(12, 2)
   amountDeposited   Decimal @default(0) @map("amount_deposited") @db.Decimal(12, 2)
   platformFeeAmount Decimal @map("platform_fee_amount") @db.Decimal(12, 2)
-  escrowStatusId    Int     @default(1) @map("escrow_status_id") // 1=Waiting, 2=Funded, 3=Released, 4=Refunded
+  escrowStatusId    Int     @default(1) @map("escrow_status_id") 
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
-
-  deal Deal @relation(fields: [dealId], references: [id])
-  status            EscrowAccountStatus @relation(fields: [escrowStatusId], references: [id])
-
+  deal   Deal                @relation(fields: [dealId], references: [id])
+  status EscrowAccountStatus @relation(fields: [escrowStatusId], references: [id])
 
   @@map("escrow_accounts")
 }
@@ -416,14 +431,14 @@ model Transaction {
   amount              Decimal   @db.Decimal(12, 2)
   externalPaymentId   String?   @map("external_payment_id") @db.VarChar(255)
   dealId              Int       @map("deal_id")
-  transactionTypeId   Int       @map("transaction_type_id") // 1=Deposit, 2=Release, 3=Refund
-  transactionStatusId Int       @map("transaction_status_id") // 1=Pending, 2=Success, 3=Fail
+  transactionTypeId   Int       @map("transaction_type_id") 
+  transactionStatusId Int       @map("transaction_status_id") 
   createdAt           DateTime  @default(now()) @map("created_at")
   processedAt         DateTime? @map("processed_at")
 
-  deal Deal @relation(fields: [dealId], references: [id])
-  type                TransactionType @relation(fields: [transactionTypeId], references: [id])
-  status              TransactionStatus @relation(fields: [transactionStatusId], references: [id])
+  deal   Deal              @relation(fields: [dealId], references: [id])
+  type   TransactionType   @relation(fields: [transactionTypeId], references: [id])
+  status TransactionStatus @relation(fields: [transactionStatusId], references: [id])
 
   @@map("transactions")
 }
@@ -433,7 +448,7 @@ model Transaction {
 model Shipment {
   id               Int       @id @default(autoincrement())
   trackingNumber   String    @unique @map("tracking_number") @db.VarChar(100)
-  logisticsService String?   @map("logistics_service") @db.VarChar(100) // "CDEK", "Dellin"
+  logisticsService String?   @map("logistics_service") @db.VarChar(100) 
   sentAt           DateTime? @map("sent_at")
   expectedDeliveryDate DateTime? @map("expected_delivery_date") @db.Date
   
@@ -448,7 +463,7 @@ model Shipment {
 
 model DeliveryStatus {
   id   Int    @id @default(autoincrement())
-  name String @unique @db.VarChar(50) // "In Transit", "Delivered", "Problem"
+  name String @unique @db.VarChar(50)
 
   shipments Shipment[]
 
@@ -459,7 +474,7 @@ model DeliveryStatus {
 
 model StatusHistory {
   id              Int      @id @default(autoincrement())
-  entityType      String   @map("entity_type") @db.VarChar(50) // 'DEAL', 'PRODUCT'
+  entityType      String   @map("entity_type") @db.VarChar(50) 
   entityId        Int      @map("entity_id")
   
   oldStatusId     Int?     @map("old_status_id")
@@ -468,9 +483,111 @@ model StatusHistory {
   initiatorUserId Int?     @map("initiator_user_id")
   changedAt       DateTime @default(now()) @map("changed_at")
 
-  // Опциональная связь, если захотим делать .include()
   initiator       User?    @relation(fields: [initiatorUserId], references: [id])
 
   @@index([entityType, entityId])
   @@map("status_history")
+}
+
+// --- Раздел 13: Governance & Analytics ---
+
+model Dispute {
+  id                 Int       @id @default(autoincrement())
+  dealId             Int       @map("deal_id")
+  disputeReason      String    @map("dispute_reason") @db.Text
+  claimantDemands    String    @map("claimant_demands") @db.Text
+  finalDecision      String?   @map("final_decision") @db.Text
+  refundAmount       Decimal?  @map("refund_amount") @db.Decimal(12, 2)
+  
+  claimantCompanyId  Int       @map("claimant_company_id")
+  defendantCompanyId Int       @map("defendant_company_id")
+  arbiterId          Int?      @map("arbiter_id")
+  disputeStatusId    Int       @map("dispute_status_id")
+  
+  openedAt           DateTime  @default(now()) @map("opened_at")
+  closedAt           DateTime? @map("closed_at")
+
+  deal      Deal          @relation(fields: [dealId], references: [id])
+  status    DisputeStatus @relation(fields: [disputeStatusId], references: [id])
+  
+  claimant  Company       @relation("Claimant", fields: [claimantCompanyId], references: [id])
+  defendant Company       @relation("Defendant", fields: [defendantCompanyId], references: [id])
+
+  @@map("disputes")
+}
+
+model DisputeStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50) 
+
+  disputes Dispute[]
+
+  @@map("dispute_statuses")
+}
+
+model CompanyReview {
+  id                 Int      @id @default(autoincrement())
+  serviceRating      Int      @map("service_rating") // 1-5
+  serviceComment     String?  @map("service_comment") @db.Text
+  reviewResponse     String?  @map("review_response") @db.Text
+  
+  dealId             Int      @map("deal_id")
+  reviewStatusId     Int      @map("review_status_id")
+  
+  authorCompanyId    Int      @map("author_company_id")
+  recipientCompanyId Int      @map("recipient_company_id")
+  moderatorId        Int?     @map("moderator_id")
+  
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  deal      Deal         @relation(fields: [dealId], references: [id])
+  status    ReviewStatus @relation(fields: [reviewStatusId], references: [id])
+  
+  author    Company      @relation("ReviewAuthor", fields: [authorCompanyId], references: [id])
+  recipient Company      @relation("ReviewRecipient", fields: [recipientCompanyId], references: [id])
+
+  @@map("company_reviews")
+}
+
+model ReviewStatus {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50) 
+
+  reviews        CompanyReview[]
+  productReviews ProductReview[]
+
+  @@map("review_statuses")
+}
+
+model CompanyStatistics {
+  companyId            Int      @id @map("company_id")
+  totalDealsAsSupplier Int      @default(0) @map("total_deals_as_supplier")
+  totalSalesVolume     Decimal  @default(0) @map("total_sales_volume") @db.Decimal(15, 2)
+  averageSalesCheck    Decimal  @default(0) @map("average_sales_check") @db.Decimal(12, 2)
+  
+  totalDealsAsBuyer    Int      @default(0) @map("total_deals_as_buyer")
+  totalPurchasesVolume Decimal  @default(0) @map("total_purchases_volume") @db.Decimal(15, 2)
+  
+  lastUpdatedAt        DateTime @default(now()) @map("last_updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_statistics")
+}
+
+model ProductReview {
+  id             Int      @id @default(autoincrement())
+  productRating  Int      @map("product_rating")
+  productComment String   @map("product_comment") @db.Text
+  dealItemId     Int      @unique @map("deal_item_id")
+  reviewStatusId Int      @map("review_status_id")
+  authorUserId   Int      @map("author_user_id")
+  moderatorId    Int?     @map("moderator_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  dealItem DealItem     @relation(fields: [dealItemId], references: [id])
+  status   ReviewStatus @relation(fields: [reviewStatusId], references: [id])
+  author   User         @relation(fields: [authorUserId], references: [id])
+
+  @@map("product_reviews")
 }
