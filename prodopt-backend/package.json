@@ -1,6 +1,6 @@
 {
   "name": "prodopt-backend",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "main": ".eslintrc.js",
   "directories": {
     "test": "test"
