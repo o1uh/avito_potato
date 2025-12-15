@@ -1,5 +1,6 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Logger, Get, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
+import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Logger, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiHeader, ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNumber, IsEnum, IsNotEmpty } from 'class-validator'; // Добавили импорты
 import { BankWebhookGuard } from '../guards/bank-webhook.guard';
 import { EscrowService } from '../services/escrow.service';
 import { TransactionsService } from '../services/transactions.service';
@@ -9,11 +10,23 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { DealStatus } from '../../trade/utils/deal-state-machine';
 import { PrismaService } from '../../../prisma/prisma.service';
 
-// DTO для вебхука (примерная структура от банка)
+// DTO с валидацией
 class WebhookDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
   paymentId: string;
-  dealId: number; // Обычно передается в metadata платежа
+
+  @ApiProperty()
+  @IsNumber()
+  dealId: number;
+
+  @ApiProperty()
+  @IsNumber()
   amount: number;
+
+  @ApiProperty()
+  @IsString() // Можно IsEnum, если строгие типы
   status: 'succeeded' | 'canceled';
 }
 
@@ -26,7 +39,7 @@ export class FinanceController {
     private readonly escrowService: EscrowService,
     private readonly transactionsService: TransactionsService,
     private readonly bankAdapter: TochkaBankAdapter,
-    private readonly prisma: PrismaService, // Для проверки прав на сделку при генерации ссылки
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('webhook/tochka')
@@ -42,7 +55,7 @@ export class FinanceController {
       return { status: 'ignored' };
     }
 
-    // 1. Идемпотентность: проверяем, не обрабатывали ли мы уже этот платеж
+    // 1. Идемпотентность
     const isProcessed = await this.transactionsService.existsByExternalId(dto.paymentId);
     if (isProcessed) {
       this.logger.log(`Payment ${dto.paymentId} already processed`);
@@ -50,16 +63,15 @@ export class FinanceController {
     }
 
     try {
-      // 2. Зачисляем средства на эскроу (вызов хранимой процедуры)
+      // 2. Зачисляем средства
       await this.escrowService.deposit(dto.dealId, dto.amount);
 
-      // 3. Привязываем ID транзакции банка к созданной транзакции в БД
+      // 3. Привязываем ID транзакции
       await this.transactionsService.linkExternalPaymentId(dto.dealId, dto.paymentId);
 
-      // 4. Проверяем баланс и обновляем статус сделки
+      // 4. Проверяем баланс
       const balance = await this.escrowService.getBalance(dto.dealId);
       
-      // Если сумма на счете >= суммы сделки -> переводим в PAID
       if (Number(balance.amountDeposited) >= Number(balance.totalAmount)) {
          await this.prisma.deal.update({
            where: { id: dto.dealId },
@@ -71,7 +83,6 @@ export class FinanceController {
       return { status: 'ok' };
     } catch (error) {
       this.logger.error(`Error processing payment ${dto.paymentId}`, error);
-      // Возвращаем 500, чтобы банк повторил попытку позже
       throw error;
     }
   }
