@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CompaniesService } from './companies.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CounterpartyService } from '../../../common/providers/counterparty.service';
+import { AddressesService } from './addresses.service'; // <--- Импорт
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -21,10 +22,18 @@ describe('CompaniesService', () => {
     organizationType: {
       findFirst: jest.fn().mockResolvedValue({ id: 1 }),
     },
+    // Добавляем поддержку транзакций для мока
+    $transaction: jest.fn((callback) => callback(mockPrisma)),
   };
 
   const mockCounterpartyService = {
     checkByInn: jest.fn(),
+  };
+
+  // <--- Мок для AddressesService
+  const mockAddressesService = {
+    createLegalAddress: jest.fn(),
+    getLegalAddressString: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -33,6 +42,7 @@ describe('CompaniesService', () => {
         CompaniesService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CounterpartyService, useValue: mockCounterpartyService },
+        { provide: AddressesService, useValue: mockAddressesService }, // <--- Внедрение
       ],
     }).compile();
 
@@ -56,12 +66,23 @@ describe('CompaniesService', () => {
       ogrn: '1234567890123',
     };
 
+    const mockDaDataResponse = {
+        name: 'Test Company',
+        inn: '7736207543',
+        address: { data: {} }
+    };
+
     it('Ownership: should create company and link it to the user', async () => {
-      // 1. Мокаем поиск юзера
+      // 1. Мокаем поиск юзера (не обязательно в новом коде, но оставим для совместимости)
       mockPrisma.user.findUnique.mockResolvedValue({ id: userId });
-      // 2. Мокаем создание компании
+      
+      // 2. Мокаем DaData
+      mockCounterpartyService.checkByInn.mockResolvedValue(mockDaDataResponse);
+
+      // 3. Мокаем создание компании
       mockPrisma.company.create.mockResolvedValue({ id: 100, ...dto });
-      // 3. Мокаем обновление юзера
+      
+      // 4. Мокаем обновление юзера
       mockPrisma.user.update.mockResolvedValue({ id: userId, companyId: 100 });
 
       const result = await service.create(userId, dto);
@@ -71,6 +92,9 @@ describe('CompaniesService', () => {
       // Проверяем, что создалась компания
       expect(mockPrisma.company.create).toHaveBeenCalled();
       
+      // Проверяем, что вызвалось создание адреса
+      expect(mockAddressesService.createLegalAddress).toHaveBeenCalled();
+
       // Проверяем, что юзер обновился (Ownership)
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: userId },
@@ -78,9 +102,10 @@ describe('CompaniesService', () => {
       });
     });
 
-    it('DB Constraint Validation: should throw BadRequestException on Invalid INN (Check Constraint)', async () => {
-      // Имитируем ошибку БД, которую выбросит PostgreSQL при нарушении CHECK constraint
-      // Prisma оборачивает её в PrismaClientKnownRequestError с кодом P2010 (или подобным)
+    it('DB Constraint Validation: should throw BadRequestException on Invalid INN', async () => {
+      mockCounterpartyService.checkByInn.mockResolvedValue(mockDaDataResponse);
+
+      // Имитируем ошибку БД
       const dbError = new Prisma.PrismaClientKnownRequestError(
         'new row for relation "companies" violates check constraint "check_inn_valid"',
         {
@@ -90,10 +115,9 @@ describe('CompaniesService', () => {
         }
       );
 
-      mockPrisma.user.findUnique.mockResolvedValue({ id: userId });
+      // В новой реализации ошибка падает на company.create внутри транзакции
       mockPrisma.company.create.mockRejectedValue(dbError);
 
-      // Ожидаем, что сервис перехватит ошибку БД и выбросит BadRequestException
       await expect(service.create(userId, dto)).rejects.toThrow(BadRequestException);
       await expect(service.create(userId, dto)).rejects.toThrow('Некорректный ИНН');
     });
