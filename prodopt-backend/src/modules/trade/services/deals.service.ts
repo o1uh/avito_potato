@@ -3,6 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { EscrowService } from '../../finance/services/escrow.service';
 import { DocumentsService } from '../../documents/services/documents.service';
 import { NotificationsService } from '../../communication/services/notifications.service';
+import { AddressesService } from '../../users/services/addresses.service'; // Импорт
 import { DealStateMachine, DealStatus } from '../utils/deal-state-machine';
 import { Prisma } from '@prisma/client';
 import { CreateDealFromOfferDto } from '../dto/trade.dto';
@@ -16,6 +17,7 @@ export class DealsService {
     private readonly escrowService: EscrowService,
     private readonly documentsService: DocumentsService,
     private readonly notificationsService: NotificationsService,
+    private readonly addressesService: AddressesService, // Инжект
   ) {}
 
   async createFromOffer(dto: CreateDealFromOfferDto, buyerCompanyId: number) {
@@ -60,20 +62,12 @@ export class DealsService {
       let dealItemsData: any[] = [];
 
       if (dto.items && dto.items.length > 0) {
-          // Вариант А: Товары переданы явно в запросе
           dealItemsData = dto.items.map(item => ({
               productVariantId: item.productVariantId,
               quantity: item.quantity,
-              // Для простоты делим общую сумму поровну или берем 0, 
-              // цена за единицу пересчитается триггером БД, если передать null, 
-              // но у нас общая сумма сделки фиксирована оффером.
-              // Чтобы математика билась, в идеале нужно брать цену из варианта.
-              // Передадим null, пусть триггер freeze_deal_item_price подтянет цену из каталога.
               pricePerUnit: null 
           }));
       } else {
-          // Вариант Б (Fallback): Если items не передали, берем первый попавшийся товар поставщика,
-          // чтобы сделка не была пустой (для PDF).
           const anyVariant = await tx.productVariant.findFirst({
               where: { product: { supplierCompanyId: offer.supplierCompanyId } }
           });
@@ -82,7 +76,7 @@ export class DealsService {
               dealItemsData.push({
                   productVariantId: anyVariant.id,
                   quantity: 1,
-                  pricePerUnit: offer.offerPrice // Присваиваем всю сумму одной позиции
+                  pricePerUnit: offer.offerPrice
               });
           }
       }
@@ -105,6 +99,7 @@ export class DealsService {
       return newDeal;
     });
 
+    // Генерируем договор асинхронно
     this.generateContract(deal.id).catch(e => this.logger.error(e));
 
     return deal;
@@ -129,7 +124,6 @@ export class DealsService {
          break;
     }
 
-    // ИСПРАВЛЕНО: Добавлен include для возврата статуса после обновления
     return this.prisma.deal.update({
       where: { id: dealId },
       data: { dealStatusId: newStatus },
@@ -143,7 +137,6 @@ export class DealsService {
       totalAmount: Number(deal.totalAmount),
     });
 
-    // ИСПРАВЛЕНО: Добавлен include
     const updatedDeal = await this.prisma.deal.update({
       where: { id: deal.id },
       data: { dealStatusId: DealStatus.AGREED },
@@ -168,7 +161,11 @@ export class DealsService {
 
     if (!fullDeal) return;
 
-    // 2. Формируем данные для шаблона
+    // 2. Получаем реальные юридические адреса
+    const supplierAddress = await this.addressesService.getLegalAddressString(fullDeal.supplier.id);
+    const buyerAddress = await this.addressesService.getLegalAddressString(fullDeal.buyer.id);
+
+    // 3. Формируем данные для шаблона
     const contractData = {
         number: `D-${fullDeal.id}/${new Date().getFullYear()}`,
         date: new Date().toLocaleDateString('ru-RU'),
@@ -176,13 +173,13 @@ export class DealsService {
         supplier: { 
             name: fullDeal.supplier.name, 
             inn: fullDeal.supplier.inn, 
-            address: 'Юридический адрес не указан', // TODO: Подтянуть из таблицы Addresses через Relation
-            director: 'Генеральный директор' // TODO: Подтянуть Signatory
+            address: supplierAddress, // ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ АДРЕС
+            director: 'Генеральный директор'
         }, 
         buyer: { 
             name: fullDeal.buyer.name, 
             inn: fullDeal.buyer.inn, 
-            address: 'Юридический адрес не указан',
+            address: buyerAddress, // ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ АДРЕС
             director: 'Генеральный директор'
         },
         items: fullDeal.items.map((item, index) => ({
@@ -195,15 +192,13 @@ export class DealsService {
         }))
     };
     
-    // 3. Генерируем
+    // 4. Генерируем
     await this.documentsService.createDocument('contract', contractData, 1, 'deal', fullDeal.id);
   }
 
   async findById(id: number, companyId: number) {
     const deal = await this.prisma.deal.findUnique({
       where: { id },
-      // ИСПРАВЛЕНО: Добавлен include: { status: true } для сделки
-      // И include: { status: true } для эскроу счета
       include: { 
         buyer: true, 
         supplier: true, 
@@ -211,7 +206,7 @@ export class DealsService {
             include: { status: true }
         }, 
         transactions: true,
-        status: true // <-- Название статуса сделки (Created, Agreed...)
+        status: true
       },
     });
 
@@ -228,7 +223,7 @@ export class DealsService {
         include: { 
             buyer: true, 
             supplier: true,
-            items: true // Подгружаем товары для акта
+            items: true
         } 
     });
     
@@ -238,6 +233,10 @@ export class DealsService {
 
     await this.escrowService.release(dealId);
 
+    // Получаем адреса для Акта
+    const supplierAddress = await this.addressesService.getLegalAddressString(deal.supplier.id);
+    const buyerAddress = await this.addressesService.getLegalAddressString(deal.buyer.id);
+
     // Подготовка реальных данных для Акта/УПД
     const docData = {
         number: `ACT-${deal.id}`,
@@ -246,21 +245,17 @@ export class DealsService {
         supplier: { 
             name: deal.supplier.name, 
             inn: deal.supplier.inn, 
-            address: 'Адрес поставщика' 
+            address: supplierAddress 
         },
         buyer: { 
             name: deal.buyer.name, 
             inn: deal.buyer.inn, 
-            address: 'Адрес покупателя' 
+            address: buyerAddress 
         },
         items: deal.items.map((item, idx) => {
-            // 1. Считаем чистую математику: Цена * Кол-во
             const price = Number(item.pricePerUnit);
             const quantity = item.quantity;
-            const totalSum = price * quantity; // 2500 * 10 = 25000.00
-
-            // 2. Выделяем НДС (20%) ИЗ суммы ("в том числе"), а не добавляем сверху
-            // Формула: Сумма * 20 / 120
+            const totalSum = price * quantity; 
             const vat = totalSum * (20 / 120); 
             const net = totalSum - vat;
 
@@ -270,11 +265,9 @@ export class DealsService {
                 quantity: item.quantity,
                 unit: item.measurementUnitAtDealMoment,
                 price: price.toFixed(2),
-                
-                // Исправленные поля:
-                totalNet: net.toFixed(2),       // ~20833.33 (Сумма без НДС)
-                vatAmount: vat.toFixed(2),      // ~4166.67 (Сумма НДС)
-                total: totalSum.toFixed(2)      // 25000.00 (Итого, совпадает с ценой сделки)
+                totalNet: net.toFixed(2),
+                vatAmount: vat.toFixed(2),
+                total: totalSum.toFixed(2)
             };
         })
     };

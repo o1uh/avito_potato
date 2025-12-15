@@ -250,6 +250,16 @@ async function main() {
       });
   }
 
+  // 19. Типы адресов
+  const addressTypes = ['Юридический', 'Фактический', 'Почтовый', 'Склад'];
+  for (const name of addressTypes) {
+    await prisma.addressType.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
   console.log('✅ Seeding finished.');
 }
 

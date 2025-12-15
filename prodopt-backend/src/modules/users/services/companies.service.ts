@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateCompanyDto } from '../dto/company.dto';
 import { CounterpartyService } from '../../../common/providers/counterparty.service';
+import { AddressesService } from './addresses.service'; // Импорт
 
 @Injectable()
 export class CompaniesService {
@@ -11,6 +12,7 @@ export class CompaniesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly counterpartyService: CounterpartyService,
+    private readonly addressesService: AddressesService, // Инжект
   ) {}
 
   async checkInn(inn: string) {
@@ -18,57 +20,53 @@ export class CompaniesService {
   }
 
   async create(userId: number, dto: CreateCompanyDto) {
-    // 1. Проверяем, есть ли уже у пользователя компания (если логика 1 юзер = 1 компания)
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { company: true },
-    });
-
-    // В текущей схеме companyId обязателен у User, и он создается при регистрации.
-    // Этот метод скорее используется для обновления данных созданной "заглушки" компании или создания новой, 
-    // если пользователь хочет сменить юрлицо. 
-    // Для соответствия ТЗ (POST /companies) реализуем создание новой.
-
     try {
-      // Ищем дефолтный тип организации, если нужно (здесь предполагаем, что он есть или берем из DTO)
-      const defaultOrgType = await this.prisma.organizationType.findFirst();
+        // 1. Получаем полные данные от DaData (включая структуру адреса)
+        // Делаем это ДО транзакции, чтобы не держать соединение с БД пока ходим во внешний API
+        const daDataInfo = await this.counterpartyService.checkByInn(dto.inn);
 
-      const company = await this.prisma.company.create({
-        data: {
-          name: dto.name,
-          inn: dto.inn,
-          kpp: dto.kpp,
-          ogrn: dto.ogrn,
-          description: dto.description,
-          organizationTypeId: defaultOrgType?.id || 1, // В реальности нужно мапить из названия или DTO
-          // Привязываем пользователя как создателя (в данной схеме User.companyId)
-          // Но так как связь User -> Company (N:1), мы должны обновить юзера
-        },
-      });
+        const defaultOrgType = await this.prisma.organizationType.findFirst();
 
-      // Привязываем текущего пользователя к новой компании
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { companyId: company.id },
-      });
+        // 2. Транзакция: Создание компании + Обновление юзера
+        const company = await this.prisma.$transaction(async (tx) => {
+            const newCompany = await tx.company.create({
+                data: {
+                    name: daDataInfo.name, // Берем официальное название
+                    inn: dto.inn,
+                    kpp: daDataInfo.kpp || dto.kpp,
+                    ogrn: daDataInfo.ogrn || dto.ogrn,
+                    description: dto.description,
+                    organizationTypeId: defaultOrgType?.id || 1,
+                },
+            });
 
-      return company;
+            // Привязываем текущего пользователя к новой компании
+            await tx.user.update({
+                where: { id: userId },
+                data: { companyId: newCompany.id },
+            });
+            
+            return newCompany;
+        });
+
+        // 3. Создаем адрес (отдельно, т.к. addressesService использует свой prisma client)
+        // В идеале передавать tx в addressesService, но для простоты делаем так.
+        if (daDataInfo.address && daDataInfo.address.data) {
+            await this.addressesService.createLegalAddress(company.id, daDataInfo.address.data);
+        }
+
+        return company;
 
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        // P2002: Unique constraint failed
         if (error.code === 'P2002') {
           throw new BadRequestException('Компания с таким ИНН уже существует');
         }
-        
-        // P2010: Raw query failed (иногда сюда падает check constraint)
         if (error.code === 'P2010' && error.message.includes('check_inn_valid')) {
            throw new BadRequestException('Некорректный ИНН (ошибка валидации контрольной суммы)');
         }
       }
       
-      // Добавляем обработку P2000 или "Unknown" ошибок, если в сообщении есть имя констрейнта
-      // Prisma иногда пробрасывает ошибку БД напрямую в message
       if (error.message && error.message.includes('check_inn_valid')) {
           throw new BadRequestException('Некорректный ИНН (ошибка валидации контрольной суммы)');
       }
@@ -83,15 +81,13 @@ export class CompaniesService {
       where: { id },
       include: { 
         organizationType: true, 
-        verificationStatus: true 
+        verificationStatus: true,
+        addresses: { include: { address: true, addressType: true } } // Подгружаем адреса
       },
     });
   }
 
-  // Заглушка для загрузки документов (будет расширено в DocumentsModule)
   async uploadLogo(companyId: number, fileKey: string) {
-    // Здесь должна быть логика сохранения ключа файла в БД компании
-    // Пока в модели Company нет поля logoUrl, пропустим изменение БД
     this.logger.log(`Logo uploaded for company ${companyId}: ${fileKey}`);
     return { success: true, key: fileKey };
   }
