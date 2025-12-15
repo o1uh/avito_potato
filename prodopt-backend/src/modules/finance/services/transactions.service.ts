@@ -10,10 +10,42 @@ export class TransactionsService {
       where: { dealId },
       orderBy: { createdAt: 'desc' },
       include: {
-        // Предполагается, что TransactionType есть в схеме (раздел 9 схемы)
-        // Если в типах prisma этого нет, нужно проверить schema.prisma,
-        // но исходя из контекста, relations настроены.
+        status: true,
+        type: true
       }
     });
+  }
+
+  /**
+   * Проверка на идемпотентность: была ли уже обработана транзакция с таким ID от банка
+   */
+  async existsByExternalId(externalPaymentId: string): Promise<boolean> {
+    const count = await this.prisma.transaction.count({
+      where: { externalPaymentId },
+    });
+    return count > 0;
+  }
+
+  /**
+   * Привязка внешнего ID к последней транзакции по сделке.
+   * Т.к. хранимая процедура process_escrow создает транзакцию, но не знает про внешний ID,
+   * мы обновляем запись сразу после вызова процедуры.
+   */
+  async linkExternalPaymentId(dealId: number, externalPaymentId: string) {
+    // Находим последнюю транзакцию пополнения (Type 1 = Deposit) по этой сделке
+    const lastTx = await this.prisma.transaction.findFirst({
+      where: { 
+        dealId, 
+        transactionTypeId: 1 // Deposit
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    if (lastTx) {
+      await this.prisma.transaction.update({
+        where: { id: lastTx.id },
+        data: { externalPaymentId },
+      });
+    }
   }
 }
