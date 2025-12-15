@@ -48,6 +48,17 @@ export class NegotiateOfferDto {
   deliveryConditions?: string;
 }
 
+// --- Вспомогательный DTO для товаров ---
+export class DealItemDto {
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  productVariantId: number;
+  
+  @ApiProperty({ example: 10 })
+  @IsInt()
+  quantity: number;
+}
+
 // --- Deals ---
 export class CreateDealFromOfferDto {
   @ApiProperty({ description: 'ID принятого коммерческого предложения' })
@@ -58,13 +69,12 @@ export class CreateDealFromOfferDto {
   @IsOptional()
   @IsBoolean()
   closeRequest?: boolean; // <-- Новое поле
+
+  @ApiPropertyOptional({ type: [DealItemDto], description: 'Список товаров для включения в сделку' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DealItemDto)
+  items?: DealItemDto[];
 }
 
-// Вспомогательный DTO для элементов сделки (если создается вручную, не через Offer)
-export class DealItemDto {
-  @IsInt()
-  productVariantId: number;
-  
-  @IsInt()
-  quantity: number;
-}
