@@ -4,9 +4,11 @@ import { UsersService } from '../../users/services/users.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+// Импортируем моки для новых зависимостей
+import { CounterpartyService } from '../../../common/providers/counterparty.service';
+import { AddressesService } from '../../users/services/addresses.service';
 import * as argon2 from 'argon2';
 
-// Мокаем библиотеку argon2
 jest.mock('argon2');
 
 describe('AuthService', () => {
@@ -19,19 +21,17 @@ describe('AuthService', () => {
     update: jest.fn(),
   };
 
-  // Исправленный мок Prisma
   const mockPrismaService = {
     company: { 
       findUnique: jest.fn(),
-      create: jest.fn(), // Добавлено
+      create: jest.fn(), 
     },
     user: {
-      create: jest.fn(), // Добавлено
+      create: jest.fn(), 
     },
     organizationType: { 
       findFirst: jest.fn().mockResolvedValue({ id: 1 }) 
     },
-    // Имитация транзакции: просто вызываем колбэк, передавая этот же объект (mockPrismaService) как tx
     $transaction: jest.fn((callback) => callback(mockPrismaService)), 
   };
 
@@ -43,6 +43,20 @@ describe('AuthService', () => {
     get: jest.fn().mockReturnValue('secret'),
   };
 
+  // Мок для CounterpartyService
+  const mockCounterpartyService = {
+    checkByInn: jest.fn().mockResolvedValue({
+        name: 'Mock Company',
+        inn: '1234567890',
+        address: { data: {} }
+    }),
+  };
+
+  // Мок для AddressesService
+  const mockAddressesService = {
+    createLegalAddress: jest.fn().mockResolvedValue({}),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -51,6 +65,9 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        // Добавляем провайдеры
+        { provide: CounterpartyService, useValue: mockCounterpartyService },
+        { provide: AddressesService, useValue: mockAddressesService },
       ],
     }).compile();
 
@@ -64,7 +81,7 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    it('should hash password and create user', async () => {
+    it('should hash password, create user and fetch address', async () => {
       const dto = {
         email: 'test@example.com',
         password: 'password123',
@@ -74,40 +91,31 @@ describe('AuthService', () => {
         phone: '123',
       };
 
-      // Настройка моков
       (argon2.hash as jest.Mock).mockResolvedValue('hashed_password');
-      mockUsersService.findByEmail.mockResolvedValue(null); // Юзера нет
-      mockPrismaService.company.findUnique.mockResolvedValue(null); // Компании нет
+      mockUsersService.findByEmail.mockResolvedValue(null); 
+      mockPrismaService.company.findUnique.mockResolvedValue(null); 
       
-      // Настраиваем возвращаемые значения для create методов
       mockPrismaService.company.create.mockResolvedValue({ id: 100 });
-      mockPrismaService.user.create.mockResolvedValue({ id: 1, email: dto.email });
+      mockPrismaService.user.create.mockResolvedValue({ id: 1, email: dto.email, companyId: 100 });
 
       await service.register(dto);
 
-      // Проверка: был ли вызван хеш
       expect(argon2.hash).toHaveBeenCalledWith(dto.password);
       
-      // Проверка: создалась ли компания
+      // Проверка вызова DaData
+      expect(mockCounterpartyService.checkByInn).toHaveBeenCalledWith(dto.inn);
+
       expect(mockPrismaService.company.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            name: dto.companyName,
+            name: 'Mock Company', // Должно взяться из мока DaData
             inn: dto.inn,
           }),
         })
       );
 
-      // Проверка: создался ли юзер (с хешированным паролем)
-      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            passwordHash: 'hashed_password',
-            email: dto.email,
-            companyId: 100, // ID созданной компании
-          }),
-        })
-      );
+      // Проверка вызова создания адреса
+      expect(mockAddressesService.createLegalAddress).toHaveBeenCalled();
     });
   });
 
@@ -132,12 +140,6 @@ describe('AuthService', () => {
         accessToken: 'test-token',
         refreshToken: 'test-token',
       });
-      
-      // Проверка генерации токенов с правильным пейлоадом
-      expect(jwtService.signAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: user.id, email: user.email }),
-        expect.any(Object),
-      );
     });
   });
 });

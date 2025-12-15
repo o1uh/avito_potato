@@ -4,6 +4,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { EscrowService } from '../../finance/services/escrow.service';
 import { DocumentsService } from '../../documents/services/documents.service';
 import { NotificationsService } from '../../communication/services/notifications.service';
+import { AddressesService } from '../../users/services/addresses.service'; // <--- Импорт
 import { DealStatus } from '../utils/deal-state-machine';
 
 describe('DealsService & DB Triggers', () => {
@@ -13,12 +14,21 @@ describe('DealsService & DB Triggers', () => {
   const mockEscrowService = { create: jest.fn(), release: jest.fn() };
   const mockDocumentsService = { createDocument: jest.fn() };
   const mockNotificationsService = { send: jest.fn() };
+  
+  // <--- Мок для AddressesService
+  const mockAddressesService = {
+      getLegalAddressString: jest.fn().mockResolvedValue('г. Москва, ул. Тестовая'),
+  };
 
   const supplierInn = '7707083893'; 
   const buyerInn = '7702070139'; 
 
   // Вспомогательная функция очистки
   const cleanup = async () => {
+    // ВАЖНО: Добавляем проверку на существование prisma, 
+    // чтобы не падать с "Cannot read properties of undefined", если модуль не собрался
+    if (!prisma) return;
+
     const inns = [supplierInn, buyerInn];
     for (const inn of inns) {
       const company = await prisma.company.findUnique({ where: { inn } });
@@ -42,6 +52,7 @@ describe('DealsService & DB Triggers', () => {
         { provide: EscrowService, useValue: mockEscrowService },
         { provide: DocumentsService, useValue: mockDocumentsService },
         { provide: NotificationsService, useValue: mockNotificationsService },
+        { provide: AddressesService, useValue: mockAddressesService }, // <--- Внедрение
       ],
     }).compile();
 
