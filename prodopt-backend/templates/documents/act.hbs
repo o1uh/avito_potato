@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: 'Arial', sans-serif; font-size: 12px; line-height: 1.4; }
+        .header { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        .info-table { width: 100%; margin-bottom: 20px; }
+        .info-table td { vertical-align: top; padding: 5px; }
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .items-table th, .items-table td { border: 1px solid #000; padding: 5px; text-align: center; }
+        .items-table th { background-color: #f0f0f0; }
+        .items-table td.text-left { text-align: left; }
+        .items-table td.text-right { text-align: right; }
+        .summary { margin-top: 10px; font-weight: bold; }
+        .signatures { width: 100%; margin-top: 40px; }
+        .signatures td { vertical-align: top; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        АКТ ПРИЕМА-ПЕРЕДАЧИ ТОВАРОВ № {{number}}<br>
+        от {{date}} г.
+    </div>
+
+    <table class="info-table">
+        <tr>
+            <td width="15%"><strong>Поставщик:</strong></td>
+            <td>{{supplier.name}}<br>ИНН: {{supplier.inn}}<br>Адрес: {{supplier.address}}</td>
+        </tr>
+        <tr>
+            <td><strong>Покупатель:</strong></td>
+            <td>{{buyer.name}}<br>ИНН: {{buyer.inn}}<br>Адрес: {{buyer.address}}</td>
+        </tr>
+    </table>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Наименование товара</th>
+                <th>Ед. изм.</th>
+                <th>Кол-во</th>
+                <th>Цена</th>
+                <th>Сумма</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each items}}
+            <tr>
+                <td>{{index}}</td>
+                <td class="text-left">{{name}}</td>
+                <td>{{unit}}</td>
+                <td>{{quantity}}</td>
+                <td class="text-right">{{price}}</td>
+                <td class="text-right">{{total}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+
+    <div class="summary">
+        <p>Итого: {{totalAmount}} руб.</p>
+        <p>Всего наименований {{items.length}}, на сумму {{totalAmount}} руб.</p>
+    </div>
+
+    <p>
+        Вышеперечисленные товары поставлены в полном объеме и в срок. Претензий по количеству и качеству Покупатель не имеет.
+    </p>
+
+    <table class="signatures">
+        <tr>
+            <td width="50%">
+                <strong>От Поставщика:</strong><br><br>
+                _________________ / _______________<br>
+                <sup>(подпись) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (расшифровка)</sup>
+            </td>
+            <td width="50%">
+                <strong>От Покупателя:</strong><br><br>
+                _________________ / _______________<br>
+                <sup>(подпись) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (расшифровка)</sup>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
