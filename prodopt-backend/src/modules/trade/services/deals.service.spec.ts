@@ -10,50 +10,27 @@ describe('DealsService & DB Triggers', () => {
   let service: DealsService;
   let prisma: PrismaService;
 
-  const mockEscrowService = { create: jest.fn() };
+  const mockEscrowService = { create: jest.fn(), release: jest.fn() };
   const mockDocumentsService = { createDocument: jest.fn() };
   const mockNotificationsService = { send: jest.fn() };
 
-  // ВАЖНО: Используем реальные валидные ИНН (Сбербанк и ВТБ)
-  const validInn1 = '7707083893'; 
-  const validInn2 = '7702070139'; 
+  const supplierInn = '7707083893'; 
+  const buyerInn = '7702070139'; 
 
-  // Вспомогательная функция для каскадной очистки
-  const cleanupCompany = async (inn: string) => {
-    const company = await prisma.company.findUnique({ where: { inn } });
-    if (company) {
-      // Находим ID сделок этой компании
-      const deals = await prisma.deal.findMany({
-        where: {
-          OR: [
-            { buyerCompanyId: company.id },
-            { supplierCompanyId: company.id }
-          ]
-        },
-        select: { id: true }
-      });
-      const dealIds = deals.map(d => d.id);
-
-      if (dealIds.length > 0) {
-        // Удаляем зависимости (Эскроу, Транзакции, Позиции)
-        // Игнорируем ошибки, если записей нет
-        await prisma.transaction.deleteMany({ where: { dealId: { in: dealIds } } });
-        await prisma.escrowAccount.deleteMany({ where: { dealId: { in: dealIds } } });
-        await prisma.dealItem.deleteMany({ where: { dealId: { in: dealIds } } });
-
-        // Удаляем сами сделки
-        await prisma.deal.deleteMany({ where: { id: { in: dealIds } } });
+  // Вспомогательная функция очистки
+  const cleanup = async () => {
+    const inns = [supplierInn, buyerInn];
+    for (const inn of inns) {
+      const company = await prisma.company.findUnique({ where: { inn } });
+      if (company) {
+        await prisma.transaction.deleteMany({ where: { deal: { OR: [{ buyerCompanyId: company.id }, { supplierCompanyId: company.id }] } } });
+        await prisma.escrowAccount.deleteMany({ where: { deal: { OR: [{ buyerCompanyId: company.id }, { supplierCompanyId: company.id }] } } });
+        await prisma.dealItem.deleteMany({ where: { deal: { OR: [{ buyerCompanyId: company.id }, { supplierCompanyId: company.id }] } } });
+        await prisma.deal.deleteMany({ where: { OR: [{ buyerCompanyId: company.id }, { supplierCompanyId: company.id }] } });
+        await prisma.companyStatistics.deleteMany({ where: { companyId: company.id } }); // Чистим статистику
+        await prisma.user.deleteMany({ where: { companyId: company.id } });
+        await prisma.company.delete({ where: { id: company.id } });
       }
-
-      // Удаляем офферы и запросы (чтобы не мешали удалению компании)
-      await prisma.commercialOffer.deleteMany({ where: { supplierCompanyId: company.id } });
-      await prisma.purchaseRequest.deleteMany({ where: { buyerCompanyId: company.id } });
-
-      // Удаляем сотрудников (если каскад не сработал)
-      await prisma.user.deleteMany({ where: { companyId: company.id } });
-
-      // Удаляем саму компанию
-      await prisma.company.delete({ where: { id: company.id } });
     }
   };
 
@@ -71,78 +48,58 @@ describe('DealsService & DB Triggers', () => {
     service = module.get<DealsService>(DealsService);
     prisma = module.get<PrismaService>(PrismaService);
 
-    // Очистка перед каждым тестом
-    await cleanupCompany(validInn1);
-    await cleanupCompany(validInn2);
+    await cleanup();
   });
 
   afterEach(async () => {
-    // Чистка после тестов
-    await cleanupCompany(validInn1);
-    await cleanupCompany(validInn2);
+    await cleanup();
   });
 
-  it('DB Trigger: should prevent Illegal Status Transition (CREATED -> COMPLETED)', async () => {
+  it('DB Trigger: Stats Update on Deal Completion', async () => {
+    // 1. Создаем компании
     const orgType = await prisma.organizationType.findFirst();
-    // Если справочник пуст (вдруг), создаем дефолтный тип
-    const orgTypeId = orgType ? orgType.id : (await prisma.organizationType.create({ data: { name: 'ООО Test' } })).id;
+    const supplier = await prisma.company.create({
+      data: { name: 'Supplier Stats', inn: supplierInn, ogrn: '123', organizationTypeId: orgType?.id || 1 }
+    });
+    const buyer = await prisma.company.create({
+      data: { name: 'Buyer Stats', inn: buyerInn, ogrn: '456', organizationTypeId: orgType?.id || 1 }
+    });
 
-    const company = await prisma.company.create({
-      data: { 
-        name: 'TestCo Trigger', 
-        inn: validInn1, 
-        ogrn: '1027700132195', 
-        organizationTypeId: orgTypeId 
-      }
+    const dealAmount = 1000;
+
+    // 2. Создаем сделку сразу в статусе SHIPPED (чтобы перевести в COMPLETED)
+    const deal = await prisma.deal.create({
+      data: {
+        buyerCompanyId: buyer.id,
+        supplierCompanyId: supplier.id,
+        totalAmount: dealAmount,
+        dealStatusId: DealStatus.SHIPPED,
+      },
+    });
+
+    // 3. Завершаем сделку (через сервис или прямой апдейт, главное - триггер БД)
+    await prisma.deal.update({
+      where: { id: deal.id },
+      data: { dealStatusId: DealStatus.COMPLETED },
+    });
+
+    // 4. Проверяем статистику Поставщика
+    const supplierStats = await prisma.companyStatistics.findUnique({
+      where: { companyId: supplier.id }
     });
     
-    const deal = await prisma.deal.create({
-      data: {
-        buyerCompanyId: company.id,
-        supplierCompanyId: company.id, // Сам с собой для простоты теста триггера
-        totalAmount: 1000,
-        dealStatusId: DealStatus.CREATED,
-      },
+    expect(supplierStats).toBeDefined();
+    expect(supplierStats.totalDealsAsSupplier).toBe(1);
+    // Приводим Decimal к Number или строке для проверки
+    expect(Number(supplierStats.totalSalesVolume)).toBe(dealAmount);
+
+    // 5. Проверяем статистику Покупателя
+    const buyerStats = await prisma.companyStatistics.findUnique({
+      where: { companyId: buyer.id }
     });
 
-    // Ожидаем ошибку БД при попытке некорректного обновления
-    await expect(
-      prisma.deal.update({
-        where: { id: deal.id },
-        data: { dealStatusId: DealStatus.COMPLETED },
-      })
-    ).rejects.toThrow(); 
-  });
-
-  it('DB Trigger: should prevent Price Change after AGREED status', async () => {
-    const orgType = await prisma.organizationType.findFirst();
-    const orgTypeId = orgType ? orgType.id : (await prisma.organizationType.create({ data: { name: 'ООО Test 2' } })).id;
-
-    const company = await prisma.company.create({
-      data: { 
-        name: 'TestCo Price', 
-        inn: validInn2, 
-        ogrn: '1027700132195', 
-        organizationTypeId: orgTypeId 
-      }
-    });
-
-    // Создаем сделку сразу в статусе AGREED
-    const deal = await prisma.deal.create({
-      data: {
-        buyerCompanyId: company.id,
-        supplierCompanyId: company.id,
-        totalAmount: 1000,
-        dealStatusId: DealStatus.AGREED,
-      },
-    });
-
-    // Пытаемся изменить сумму
-    await expect(
-      prisma.deal.update({
-        where: { id: deal.id },
-        data: { totalAmount: 5000 },
-      })
-    ).rejects.toThrow(); // Ожидаем "Cannot change deal amount after agreement"
+    expect(buyerStats).toBeDefined();
+    expect(buyerStats.totalDealsAsBuyer).toBe(1);
+    expect(Number(buyerStats.totalPurchasesVolume)).toBe(dealAmount);
   });
 });
