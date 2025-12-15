@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
-import { BullModule } from '@nestjs/bullmq'; // Added
+import { BullModule } from '@nestjs/bullmq';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation.schema';
 import { HealthModule } from './modules/health/health.module';
@@ -17,7 +17,9 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { NetworkingModule } from './modules/networking/networking.module';
 import { TradeModule } from './modules/trade/trade.module';
-
+import { AdminModule } from './modules/admin/admin.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { GovernanceModule } from './modules/governance/governance.module';
 
 @Module({
   imports: [
@@ -26,7 +28,6 @@ import { TradeModule } from './modules/trade/trade.module';
       load: [configuration],
       validationSchema: validationSchema,
     }),
-    // Global BullMQ Config
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -49,6 +50,9 @@ import { TradeModule } from './modules/trade/trade.module';
     FinanceModule,
     NetworkingModule,
     TradeModule,
+    AdminModule,
+    AnalyticsModule,
+    GovernanceModule,
   ],
   providers: [
     {
