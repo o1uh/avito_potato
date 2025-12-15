@@ -76,6 +76,10 @@ export class AuthService {
       throw new UnauthorizedException('Access Denied');
     }
 
+    if (!user.isActive) {
+      throw new ForbiddenException('Your account has been banned');
+    }
+
     const passwordMatches = await argon2.verify(user.passwordHash, dto.password);
     if (!passwordMatches) {
       throw new UnauthorizedException('Access Denied');

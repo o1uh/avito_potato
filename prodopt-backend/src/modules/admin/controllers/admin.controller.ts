@@ -17,8 +17,10 @@ export class AdminController {
 
   @Get('stats')
   @ApiOperation({ summary: 'Дашборд админа (общая статистика)' })
-  async getDashboard(@CurrentUser('role') role: number) {
-    if (role !== 1) throw new ForbiddenException();
+  // ИСПРАВЛЕНИЕ: Проверяем userId, а не роль в компании
+  async getDashboard(@CurrentUser('sub') userId: number) {
+    // ID 1 зарезервирован за Супер-Админом в seed.ts
+    if (userId !== 1) throw new ForbiddenException('Access restricted to Super Admin only');
 
     const [users, companies, deals, disputes] = await Promise.all([
       this.prisma.user.count(),
@@ -32,15 +34,15 @@ export class AdminController {
 
   @Get('moderation/products')
   @ApiOperation({ summary: 'Очередь товаров на модерацию' })
-  async getModerationQueue(@CurrentUser('role') role: number) {
-    if (role !== 1) throw new ForbiddenException();
+  async getModerationQueue(@CurrentUser('sub') userId: number) {
+    if (userId !== 1) throw new ForbiddenException('Access restricted');
     return this.moderationService.getPendingProducts();
   }
 
   @Patch('moderation/products/:id/approve')
   @ApiOperation({ summary: 'Одобрить товар' })
-  async approveProduct(@Param('id', ParseIntPipe) id: number, @CurrentUser('role') role: number, @CurrentUser('sub') adminId: number) {
-    if (role !== 1) throw new ForbiddenException();
+  async approveProduct(@Param('id', ParseIntPipe) id: number, @CurrentUser('sub') adminId: number) {
+    if (adminId !== 1) throw new ForbiddenException('Access restricted');
     return this.moderationService.approveProduct(id, adminId);
   }
 }
