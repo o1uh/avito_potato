@@ -27,6 +27,7 @@ model Company {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   // Основные связи
+  addresses CompanyAddress[]
   users            User[]
   suppliedProducts Product[]
   purchaseRequests PurchaseRequest[] @relation("BuyerRequests")
@@ -258,6 +259,51 @@ model PaymentDetail {
   @@map("payment_details")
 }
 
+model Address {
+  id            Int     @id @default(autoincrement())
+  postalCode    String? @map("postal_code") @db.VarChar(20)
+  country       String  @db.VarChar(100)
+  region        String? @db.VarChar(150)
+  city          String? @db.VarChar(150)
+  street        String? @db.VarChar(255)
+  house         String? @db.VarChar(50)
+  building      String? @db.VarChar(50)
+  apartment     String? @db.VarChar(50)
+  comment       String? @db.Text
+  
+  // Технические поля
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Обратные связи
+  companies     CompanyAddress[]
+  deals         Deal[] // Сделки, где этот адрес использован для доставки
+
+  @@map("addresses")
+}
+
+model AddressType {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50) // 'Юридический', 'Фактический', 'Склад', 'Почтовый'
+
+  companyAddresses CompanyAddress[]
+
+  @@map("address_types")
+}
+
+// Промежуточная таблица для связи Компаний и Адресов
+model CompanyAddress {
+  companyId     Int @map("company_id")
+  addressId     Int @map("address_id")
+  addressTypeId Int @map("address_type_id")
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  address     Address     @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  addressType AddressType @relation(fields: [addressTypeId], references: [id])
+
+  @@id([companyId, addressId, addressTypeId])
+  @@map("company_addresses")
+}
+
 // --- Раздел 4: Документы ---
 
 model Document {
@@ -374,10 +420,14 @@ model Deal {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
+  deliveryAddressId Int? @map("delivery_address_id")
+
   buyer           Company          @relation("BuyerDeals", fields: [buyerCompanyId], references: [id])
   supplier        Company          @relation("SupplierDeals", fields: [supplierCompanyId], references: [id])
   commercialOffer CommercialOffer? @relation(fields: [commercialOfferId], references: [id])
   status          DealStatus       @relation(fields: [dealStatusId], references: [id])
+  deliveryAddress Address? @relation(fields: [deliveryAddressId], references: [id])
+
 
   escrowAccount   EscrowAccount?
   transactions    Transaction[]

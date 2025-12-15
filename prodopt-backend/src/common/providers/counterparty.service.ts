@@ -8,7 +8,20 @@ export interface CompanyDetails {
   inn: string;
   kpp?: string;
   ogrn: string;
-  address: string;
+  // Структурированный адрес (а не просто строка)
+  address: {
+    value: string; // Полная строка
+    data: {
+      postal_code?: string;
+      country?: string;
+      region_with_type?: string;
+      city?: string;
+      street_with_type?: string;
+      house?: string;
+      block?: string; // корпус/строение
+      flat?: string;  // офис/квартира
+    }
+  };
   status: string; // ACTIVE, LIQUIDATING, etc.
   ceoName?: string;
 }
@@ -52,12 +65,16 @@ export class CounterpartyService {
       }
 
       const suggestion = data.suggestions[0];
+      
       return {
         name: suggestion.value,
         inn: suggestion.data.inn,
         kpp: suggestion.data.kpp,
         ogrn: suggestion.data.ogrn,
-        address: suggestion.data.address.value,
+        address: {
+            value: suggestion.data.address.value,
+            data: suggestion.data.address.data || {}
+        },
         status: suggestion.data.state.status,
         ceoName: suggestion.data.management?.name,
       };
@@ -74,7 +91,17 @@ export class CounterpartyService {
       inn,
       kpp: '770101001',
       ogrn: '1234567890123',
-      address: 'г. Москва, ул. Примерная, д. 1',
+      address: {
+          value: 'г. Москва, ул. Примерная, д. 1',
+          data: {
+              postal_code: '101000',
+              country: 'Россия',
+              region_with_type: 'г Москва',
+              city: 'Москва',
+              street_with_type: 'ул Примерная',
+              house: '1'
+          }
+      },
       status: 'ACTIVE',
       ceoName: 'Иванов Иван Иванович',
     };
