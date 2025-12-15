@@ -253,16 +253,30 @@ export class DealsService {
             inn: deal.buyer.inn, 
             address: 'Адрес покупателя' 
         },
-        items: deal.items.map((item, idx) => ({
-            index: idx + 1,
-            name: item.productNameAtDealMoment,
-            quantity: item.quantity,
-            unit: item.measurementUnitAtDealMoment,
-            price: Number(item.pricePerUnit).toFixed(2),
-            totalNet: (Number(item.pricePerUnit) * item.quantity).toFixed(2), // Без НДС
-            vatAmount: ((Number(item.pricePerUnit) * item.quantity) * 0.20).toFixed(2), // Пример НДС 20%
-            total: ((Number(item.pricePerUnit) * item.quantity) * 1.20).toFixed(2) // Итого
-        }))
+        items: deal.items.map((item, idx) => {
+            // 1. Считаем чистую математику: Цена * Кол-во
+            const price = Number(item.pricePerUnit);
+            const quantity = item.quantity;
+            const totalSum = price * quantity; // 2500 * 10 = 25000.00
+
+            // 2. Выделяем НДС (20%) ИЗ суммы ("в том числе"), а не добавляем сверху
+            // Формула: Сумма * 20 / 120
+            const vat = totalSum * (20 / 120); 
+            const net = totalSum - vat;
+
+            return {
+                index: idx + 1,
+                name: item.productNameAtDealMoment,
+                quantity: item.quantity,
+                unit: item.measurementUnitAtDealMoment,
+                price: price.toFixed(2),
+                
+                // Исправленные поля:
+                totalNet: net.toFixed(2),       // ~20833.33 (Сумма без НДС)
+                vatAmount: vat.toFixed(2),      // ~4166.67 (Сумма НДС)
+                total: totalSum.toFixed(2)      // 25000.00 (Итого, совпадает с ценой сделки)
+            };
+        })
     };
 
     try {
