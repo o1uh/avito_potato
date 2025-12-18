@@ -78,6 +78,7 @@ model User {
   
   // Модерация и Отзывы
   moderatedProducts     Product[]       @relation("ProductModerator")
+  notifications         Notification[] 
   authoredProductReviews ProductReview[]
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -640,4 +641,24 @@ model ProductReview {
   author   User         @relation(fields: [authorUserId], references: [id])
 
   @@map("product_reviews")
+}
+
+model Notification {
+  id                 Int      @id @default(autoincrement())
+  recipientId        Int      @map("recipient_id")
+  title              String   @db.VarChar(255)
+  message            String   @db.Text
+  type               String   @default("INFO") @db.VarChar(50) // INFO, WARNING, SUCCESS, ERROR
+  
+  entityType         String?  @map("entity_type") @db.VarChar(50) // deal, dispute, ticket
+  entityId           Int?     @map("entity_id")
+  
+  isRead             Boolean  @default(false) @map("is_read")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  recipient          User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([isRead])
+  @@map("notifications")
 }

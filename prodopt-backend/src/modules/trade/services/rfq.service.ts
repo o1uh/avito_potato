@@ -30,14 +30,18 @@ export class RfqService {
       });
 
       for (const supplier of suppliers) {
-        await this.notificationsService.send('email', {
-          to: supplier.email,
+        await this.notificationsService.send({
+          userId: supplier.id,
+          toEmail: supplier.email,
           subject: 'Новый запрос на закупку',
+          message: `Компания ${rfq.buyer.name} разместила новый запрос`, // Текст для UI
           template: 'notification',
           context: {
             title: 'Вам поступил новый RFQ',
             message: `Компания ${rfq.buyer.name} хочет купить товары.`,
           },
+          entityType: 'offer', // или 'rfq'
+          entityId: rfq.id
         });
       }
     }

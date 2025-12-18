@@ -51,14 +51,19 @@ export class TrackingPollTask {
           });
 
           for (const user of users) {
-            await this.notificationsService.send('email', {
-              to: user.email,
+            await this.notificationsService.send({
+              userId: user.id,
+              toEmail: user.email,
               subject: 'Ваш заказ доставлен',
+              message: `Заказ по сделке #${shipment.deal.id} прибыл.`,
               template: 'notification',
               context: {
                 title: 'Груз прибыл',
-                message: `Заказ по сделке #${shipment.deal.id} доставлен. Пожалуйста, подтвердите приемку в личном кабинете.`,
+                message: `Заказ по сделке #${shipment.deal.id} доставлен. Пожалуйста, подтвердите приемку.`,
               },
+              type: 'SUCCESS',
+              entityType: 'deal',
+              entityId: shipment.deal.id
             });
           }
           
