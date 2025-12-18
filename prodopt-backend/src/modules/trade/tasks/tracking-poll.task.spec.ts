@@ -49,11 +49,10 @@ describe('TrackingPollTask', () => {
   });
 
   it('should update shipment status to DELIVERED and notify buyer', async () => {
-    // 1. Подготовка данных (Используем camelCase!)
     const mockShipment = {
       id: 100,
-      trackingNumber: 'TEST-123', // camelCase
-      deliveryStatusId: 1,        // camelCase
+      trackingNumber: 'TEST-123',
+      deliveryStatusId: 1,
       deal: {
         id: 50,
         buyerCompanyId: 10,
@@ -62,7 +61,7 @@ describe('TrackingPollTask', () => {
       },
     };
 
-    const mockBuyerUser = { email: 'buyer@test.com' };
+    const mockBuyerUser = { id: 555, email: 'buyer@test.com' };
 
     // 2. Настройка моков
     mockPrisma.shipment.findMany.mockResolvedValue([mockShipment]);
@@ -80,10 +79,8 @@ describe('TrackingPollTask', () => {
     await task.handleCron();
 
     // 4. Проверки
-    // Адаптер вызван с правильным треком
     expect(cdekAdapter.getTrackingStatus).toHaveBeenCalledWith('TEST-123');
 
-    // Статус в БД обновлен на 2 (Delivered) - проверка вызова update с camelCase
     expect(mockPrisma.shipment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 100 },
@@ -91,12 +88,13 @@ describe('TrackingPollTask', () => {
       }),
     );
 
-    // Уведомление отправлено
     expect(notificationsService.send).toHaveBeenCalledWith(
-      'email',
       expect.objectContaining({
-        to: 'buyer@test.com',
+        userId: 555, // Проверяем, что ID передался
+        toEmail: 'buyer@test.com',
         subject: 'Ваш заказ доставлен',
+        template: 'notification',
+        type: 'SUCCESS', // Проверяем тип, который мы добавили в коде
       }),
     );
   });
@@ -117,9 +115,7 @@ describe('TrackingPollTask', () => {
 
     await task.handleCron();
 
-    // Обновления не должно быть
     expect(mockPrisma.shipment.update).not.toHaveBeenCalled();
-    // Уведомления не должно быть
     expect(notificationsService.send).not.toHaveBeenCalled();
   });
 });
