@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { ENV } from '@/shared/config/env';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const API_URL = ENV.API_URL;
 
 export const $api = axios.create({
   baseURL: '/api', // Используем прокси Vite

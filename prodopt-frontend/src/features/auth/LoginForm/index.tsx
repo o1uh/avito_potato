@@ -23,7 +23,11 @@ export const LoginForm = () => {
       message.success('Успешный вход');
       navigate(ROUTES.HOME);
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Ошибка входа');
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        message.error('Неверный логин или пароль');
+      } else {
+        message.error('Ошибка сети или сервера');
+      }
     }
   };
 
