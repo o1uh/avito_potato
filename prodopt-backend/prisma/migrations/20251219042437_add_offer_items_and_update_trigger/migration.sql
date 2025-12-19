@@ -1,3 +1,27 @@
+-- AlterTable
+ALTER TABLE "purchase_requests" ADD COLUMN     "product_variant_id" INTEGER,
+ADD COLUMN     "requested_quantity" INTEGER;
+
+-- CreateTable
+CREATE TABLE "offer_items" (
+    "id" SERIAL NOT NULL,
+    "commercial_offer_id" INTEGER NOT NULL,
+    "product_variant_id" INTEGER NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "price_per_unit" DECIMAL(10,2) NOT NULL,
+
+    CONSTRAINT "offer_items_pkey" PRIMARY KEY ("id")
+);
+
+-- AddForeignKey
+ALTER TABLE "purchase_requests" ADD CONSTRAINT "purchase_requests_product_variant_id_fkey" FOREIGN KEY ("product_variant_id") REFERENCES "product_variants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "offer_items" ADD CONSTRAINT "offer_items_commercial_offer_id_fkey" FOREIGN KEY ("commercial_offer_id") REFERENCES "commercial_offers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "offer_items" ADD CONSTRAINT "offer_items_product_variant_id_fkey" FOREIGN KEY ("product_variant_id") REFERENCES "product_variants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
 CREATE OR REPLACE FUNCTION freeze_deal_item_price() RETURNS TRIGGER AS $$
 DECLARE
     current_price DECIMAL(10, 2);
@@ -29,12 +53,3 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS freeze_price ON deal_items; 
-
--- ИСПОЛЬЗУЕМ deal_items (в нижнем регистре, без кавычек или в кавычках но с маленькой буквы)
--- Так как в Prisma @@map("deal_items")
-CREATE TRIGGER freeze_price
-BEFORE INSERT ON deal_items 
-FOR EACH ROW
-EXECUTE FUNCTION freeze_deal_item_price();

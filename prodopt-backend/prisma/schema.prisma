@@ -136,6 +136,8 @@ model ProductVariant {
   product         Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   measurementUnit MeasurementUnit @relation(fields: [measurementUnitId], references: [id])
   
+  purchaseRequests PurchaseRequest[]
+  offerItems       OfferItem[]
   dealItems       DealItem[]
 
   @@index([sku])
@@ -148,11 +150,16 @@ model PurchaseRequest {
   requestStatusId   Int      @map("request_status_id")
   buyerCompanyId    Int      @map("buyer_company_id")
   supplierCompanyId Int?     @map("supplier_company_id")
+  productVariantId  Int?     @map("product_variant_id")
+  requestedQuantity Int?     @map("requested_quantity")
   createdAt         DateTime @default(now()) @map("created_at")
 
   buyer    Company           @relation("BuyerRequests", fields: [buyerCompanyId], references: [id], onDelete: Cascade)
   supplier Company?          @relation("SupplierOpenRequests", fields: [supplierCompanyId], references: [id])
   status   RequestStatus     @relation(fields: [requestStatusId], references: [id])
+
+  targetVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+
   offers   CommercialOffer[]
 
   @@map("purchase_requests")
@@ -182,8 +189,22 @@ model CommercialOffer {
   status          OfferStatus     @relation(fields: [offerStatusId], references: [id])
 
   deal Deal? 
+  items OfferItem[]
 
   @@map("commercial_offers")
+}
+
+model OfferItem {
+  id               Int     @id @default(autoincrement())
+  commercialOfferId Int    @map("commercial_offer_id")
+  productVariantId  Int    @map("product_variant_id")
+  quantity          Int
+  pricePerUnit      Decimal @map("price_per_unit") @db.Decimal(10, 2)
+
+  offer          CommercialOffer @relation(fields: [commercialOfferId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant  @relation(fields: [productVariantId], references: [id])
+
+  @@map("offer_items")
 }
 
 model OfferStatus {

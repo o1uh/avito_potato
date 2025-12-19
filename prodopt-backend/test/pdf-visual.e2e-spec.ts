@@ -69,6 +69,10 @@ describe('PDF Visual Verification (Save to Disk)', () => {
           await prisma.productImage.deleteMany({ where: { product: { supplierCompanyId: company.id } } });
           await prisma.product.deleteMany({ where: { supplierCompanyId: company.id }});
           
+          await prisma.offerItem.deleteMany({ where: { offer: { supplierCompanyId: company.id } } });
+          await prisma.commercialOffer.deleteMany({ where: { supplierCompanyId: company.id } });
+          await prisma.purchaseRequest.deleteMany({ where: { buyerCompanyId: company.id } });
+
           await prisma.commercialOffer.deleteMany({ where: { supplierCompanyId: company.id } });
           await prisma.purchaseRequest.deleteMany({ where: { buyerCompanyId: company.id } });
 
@@ -178,6 +182,7 @@ describe('PDF Visual Verification (Save to Disk)', () => {
   });
 
   it('Should generate Contract and Act with REAL data, SAVE to disk and VERIFY address', async () => {
+    // 1. Создаем товар
     const productRes = await request(app.getHttpServer())
         .post('/products')
         .set('Authorization', `Bearer ${supplierUser.token}`)
@@ -189,9 +194,38 @@ describe('PDF Visual Verification (Save to Disk)', () => {
         }).expect(201);
     const variantId = productRes.body.variants[0].id;
 
-    const rfqRes = await request(app.getHttpServer()).post('/trade/rfq').set('Authorization', `Bearer ${buyerUser.token}`).send({ comment: 'Срочная закупка' }).expect(201);
-    const offerRes = await request(app.getHttpServer()).post('/trade/offers').set('Authorization', `Bearer ${supplierUser.token}`).send({ requestId: rfqRes.body.id, offerPrice: 500000, deliveryConditions: 'EXW', expiresOn: '2025-12-31' }).expect(201);
-    const dealRes = await request(app.getHttpServer()).post('/trade/deals/from-offer').set('Authorization', `Bearer ${buyerUser.token}`).send({ offerId: offerRes.body.id, items: [{ productVariantId: variantId, quantity: 1 }] }).expect(201);
+    // 2. Создаем RFQ
+    const rfqRes = await request(app.getHttpServer())
+        .post('/trade/rfq')
+        .set('Authorization', `Bearer ${buyerUser.token}`)
+        .send({ comment: 'Срочная закупка', productVariantId: variantId, quantity: 1 })
+        .expect(201);
+
+    // 3. Создаем Offer с ITEMS
+    const offerRes = await request(app.getHttpServer())
+        .post('/trade/offers')
+        .set('Authorization', `Bearer ${supplierUser.token}`)
+        .send({ 
+            requestId: rfqRes.body.id, 
+            offerPrice: 500000, 
+            deliveryConditions: 'EXW', 
+            expiresOn: '2025-12-31',
+            items: [
+                { productVariantId: variantId, quantity: 1, pricePerUnit: 500000 }
+            ]
+        })
+        .expect(201);
+
+    // 4. Создаем Сделку
+    const dealRes = await request(app.getHttpServer())
+        .post('/trade/deals/from-offer')
+        .set('Authorization', `Bearer ${buyerUser.token}`)
+        .send({ 
+            offerId: offerRes.body.id
+            // Items больше не нужны здесь
+        })
+        .expect(201);
+        
     const dealId = dealRes.body.id;
 
     const contractDoc = await waitForDocument(dealId, 'Договор');

@@ -17,7 +17,9 @@ export class RfqService {
         comment: dto.comment,
         buyerCompanyId,
         supplierCompanyId: dto.supplierCompanyId, // Может быть null
-        requestStatusId: 1, // New
+        requestStatusId: 1, 
+        productVariantId: dto.productVariantId,
+        requestedQuantity: dto.quantity,
       },
       include: { buyer: true },
     });
@@ -58,7 +60,13 @@ export class RfqService {
           { supplierCompanyId: null }, // Публичные запросы
         ],
       },
-      include: { buyer: true, supplier: true },
+      include: { 
+          buyer: true, 
+          supplier: true,
+          targetVariant: {
+              include: { product: true, measurementUnit: true }
+          }
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

@@ -26,7 +26,15 @@ export class OffersService {
         deliveryConditions: dto.deliveryConditions,
         expiresOn: new Date(dto.expiresOn),
         offerStatusId: 1, // Sent
+        items: {
+            create: dto.items.map(item => ({
+                productVariantId: item.productVariantId,
+                quantity: item.quantity,
+                pricePerUnit: item.pricePerUnit
+            }))
+        }
       },
+      include: { items: true } // Возвращаем созданные items
     });
   }
 
@@ -56,9 +64,10 @@ export class OffersService {
         where: { supplierCompanyId: companyId },
         include: {
           purchaseRequest: {
-            include: { buyer: { select: { id: true, name: true } } } // Чтобы видеть, кому отправили
+            include: { buyer: { select: { id: true, name: true,} } } // Чтобы видеть, кому отправили
           },
           status: true,
+          items: { include: { productVariant: { include: { product: true } } } }
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -74,6 +83,7 @@ export class OffersService {
           supplier: { select: { id: true, name: true, rating: true } }, // Чтобы видеть, кто прислал
           purchaseRequest: true, // Контекст запроса
           status: true,
+          items: { include: { productVariant: { include: { product: true } } } }
         },
         orderBy: { createdAt: 'desc' },
       });

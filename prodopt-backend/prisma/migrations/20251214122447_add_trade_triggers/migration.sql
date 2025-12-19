@@ -32,37 +32,25 @@ DECLARE
     prod_name TEXT;
     unit_name TEXT;
 BEGIN
-    -- Если цена или названия не переданы, подтягиваем их из ProductVariant
-    IF NEW.price_per_unit IS NULL OR NEW.product_name_at_deal_moment IS NULL THEN
-        SELECT 
-            pv.price, 
-            pv.variant_name,
-            p.name,
-            mu.name
-        INTO 
-            current_price,
-            variant_name,
-            prod_name,
-            unit_name
-        FROM product_variants pv
-        JOIN products p ON p.id = pv.product_id
-        JOIN measurement_units mu ON mu.id = pv.measurement_unit_id
-        WHERE pv.id = NEW.product_variant_id;
+    -- Подтягиваем данные варианта
+    SELECT pv.price, pv.variant_name, p.name, mu.name
+    INTO current_price, variant_name, prod_name, unit_name
+    FROM product_variants pv
+    JOIN products p ON p.id = pv.product_id
+    JOIN measurement_units mu ON mu.id = pv.measurement_unit_id
+    WHERE pv.id = NEW.product_variant_id;
 
-        IF NOT FOUND THEN
-            RAISE EXCEPTION 'Product variant % not found', NEW.product_variant_id;
-        END IF;
-
-        IF NEW.price_per_unit IS NULL THEN
-            NEW.price_per_unit := current_price;
-        END IF;
-        
-        -- Фиксируем названия на момент сделки (snapshot)
-        IF NEW.product_name_at_deal_moment IS NULL THEN
-            NEW.product_name_at_deal_moment := prod_name;
-            NEW.variant_name_at_deal_moment := variant_name;
-            NEW.measurement_unit_at_deal_moment := unit_name;
-        END IF;
+    -- Если цена не передана, берем из каталога
+    IF NEW.price_per_unit IS NULL THEN
+        NEW.price_per_unit := current_price;
+    END IF;
+    
+    -- Имена фиксируем ВСЕГДА, если они не переданы явно, 
+    -- независимо от того, передана цена или нет.
+    IF NEW.product_name_at_deal_moment IS NULL THEN
+        NEW.product_name_at_deal_moment := prod_name;
+        NEW.variant_name_at_deal_moment := variant_name;
+        NEW.measurement_unit_at_deal_moment := unit_name;
     END IF;
 
     RETURN NEW;
