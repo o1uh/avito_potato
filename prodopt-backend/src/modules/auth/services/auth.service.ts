@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   UnauthorizedException,
-  Logger, // Добавлен Logger
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -11,7 +11,6 @@ import * as argon2 from 'argon2';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { UsersService } from '../../users/services/users.service';
 import { RegisterDto, LoginDto } from '../dto/auth.dto';
-// Добавлены новые импорты
 import { CounterpartyService } from '../../../common/providers/counterparty.service';
 import { AddressesService } from '../../users/services/addresses.service';
 
@@ -24,12 +23,11 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    // Внедряем сервисы
     private counterpartyService: CounterpartyService,
     private addressesService: AddressesService,
   ) {}
 
-  // Регистрация
+  // --- РЕГИСТРАЦИЯ (С ИСПРАВЛЕНИЕМ) ---
   async register(dto: RegisterDto) {
     const userExists = await this.usersService.findByEmail(dto.email);
     if (userExists) {
@@ -43,69 +41,85 @@ export class AuthService {
       throw new BadRequestException('Company with this INN already exists');
     }
 
-    // 1. Получаем данные об организации (включая адрес) через DaData
-    // Это нужно сделать ДО транзакции
+    // 1. Получаем данные об организации
     let daDataInfo;
     try {
-        daDataInfo = await this.counterpartyService.checkByInn(dto.inn);
+      daDataInfo = await this.counterpartyService.checkByInn(dto.inn);
     } catch (e) {
-        this.logger.warn(`DaData lookup failed for INN ${dto.inn}, using fallback data`);
-        // Fallback, если сервис недоступен, чтобы не блокировать регистрацию
-        daDataInfo = { 
-            name: dto.companyName, 
-            inn: dto.inn, 
-            ogrn: '', 
-            address: { data: {} } 
-        };
+      this.logger.warn(`DaData lookup failed for INN ${dto.inn}, using fallback data`);
+      daDataInfo = { 
+        name: dto.companyName, 
+        inn: dto.inn, 
+        ogrn: '', 
+        address: { data: {} } 
+      };
     }
 
     const passwordHash = await argon2.hash(dto.password);
 
-    const newUser = await this.prisma.$transaction(async (tx) => {
-      const defaultOrgType = await tx.organizationType.findFirst();
-      
-      const company = await tx.company.create({
-        data: {
-          name: daDataInfo.name || dto.companyName, // Предпочитаем официальное название
-          inn: dto.inn,
-          kpp: daDataInfo.kpp, // Сохраняем КПП если есть
-          ogrn: daDataInfo.ogrn || '', // Сохраняем ОГРН
-          organizationTypeId: defaultOrgType?.id || 1,
-        },
+    // 2. Транзакция создания компании и пользователя
+    let newUser;
+    try {
+      newUser = await this.prisma.$transaction(async (tx) => {
+        const defaultOrgType = await tx.organizationType.findFirst();
+        
+        const company = await tx.company.create({
+          data: {
+            name: daDataInfo.name || dto.companyName,
+            inn: dto.inn,
+            kpp: daDataInfo.kpp,
+            ogrn: daDataInfo.ogrn || '',
+            organizationTypeId: defaultOrgType?.id || 1,
+          },
+        });
+
+        const user = await tx.user.create({
+          data: {
+            email: dto.email,
+            fullName: dto.fullName,
+            passwordHash,
+            phone: dto.phone,
+            companyId: company.id,
+            roleInCompanyId: 1, 
+          },
+        });
+
+        return user;
       });
+    } catch (error) {
+      // Превращаем ошибку в строку для поиска текста
+      const errorString = JSON.stringify(error) + error.message;
 
-      const user = await tx.user.create({
-        data: {
-          email: dto.email,
-          fullName: dto.fullName,
-          passwordHash,
-          phone: dto.phone,
-          companyId: company.id,
-          roleInCompanyId: 1, 
-        },
-      });
+      // Ловим ошибку валидации ИНН (check_inn_valid)
+      if (errorString.includes('check_inn_valid') || errorString.includes('23514')) {
+          throw new BadRequestException('Некорректный ИНН (ошибка валидации контрольной суммы)');
+      }
 
-      return user;
-    });
+      // Пробрасываем остальные ошибки (например, дубликат)
+      if (error.code === 'P2002') {
+           throw new BadRequestException('Компания с таким ИНН уже существует');
+      }
 
-    // 2. Создаем юридический адрес, если данные получены
-    if (daDataInfo.address && daDataInfo.address.data) {
-        try {
-            await this.addressesService.createLegalAddress(newUser.companyId, daDataInfo.address.data);
-        } catch (e) {
-            this.logger.error(`Failed to create address for company ${newUser.companyId}`, e);
-            // Не роняем регистрацию, если адрес не создался, но логируем
-        }
+      this.logger.error('Registration Transaction Failed', error);
+      throw error; // Если не поймали, пусть летит 500
     }
 
-    // Передаем companyId в генерацию токенов
+    // 3. Создаем адрес (вне транзакции)
+    if (daDataInfo.address && daDataInfo.address.data) {
+      try {
+        await this.addressesService.createLegalAddress(newUser.companyId, daDataInfo.address.data);
+      } catch (e) {
+        this.logger.error(`Failed to create address for company ${newUser.companyId}`, e);
+      }
+    }
+
     const tokens = await this.getTokens(newUser.id, newUser.email, newUser.companyId, newUser.roleInCompanyId);
     await this.updateRefreshToken(newUser.id, tokens.refreshToken);
 
     return tokens;
   }
 
-  // Вход (без изменений)
+  // --- ВХОД (LOGIN) ---
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
@@ -127,6 +141,7 @@ export class AuthService {
     return tokens;
   }
 
+  // --- ВЫХОД (LOGOUT) ---
   async logout(userId: number) {
     await this.usersService.update(userId, {
       refreshTokenHash: null,
@@ -134,6 +149,7 @@ export class AuthService {
     });
   }
 
+  // --- ОБНОВЛЕНИЕ ТОКЕНОВ ---
   async refreshTokens(userId: number, rt: string) {
     const user = await this.usersService.findById(userId);
     if (!user || !user.refreshTokenHash) {
@@ -151,7 +167,7 @@ export class AuthService {
     return tokens;
   }
 
-  // --- Вспомогательные методы ---
+  // --- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ---
 
   private async getTokens(userId: number, email: string, companyId: number, roleId: number) {
     const payload = { sub: userId, email, companyId, role: roleId };
