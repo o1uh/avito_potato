@@ -14,3 +14,12 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 });
+
+// Мокаем конфиг окружения, чтобы Jest не встречал import.meta
+jest.mock('@/shared/config/env', () => ({
+  ENV: {
+    API_URL: 'http://localhost:3000',
+    MODE: 'test',
+    DEV: true,
+  },
+}));
