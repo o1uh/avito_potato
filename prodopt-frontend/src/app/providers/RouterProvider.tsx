@@ -1,16 +1,33 @@
-import { createBrowserRouter, RouterProvider as ReactRouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider as ReactRouterProvider, Navigate } from 'react-router-dom';
 import { ROUTES } from '@/shared/config/routes';
+import { LoginPage } from '@/pages/auth/LoginPage';
+import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { ProfilePage } from '@/pages/profile/ProfilePage';
+import { useSessionStore } from '@/entities/session/model/store';
+
+// Компонент-защитник для авторизованных зон
+const AuthGuard = ({ children }: { children: React.ReactNode }) => {
+  const isAuth = useSessionStore((state) => state.isAuth);
+  return isAuth ? <>{children}</> : <Navigate to={ROUTES.LOGIN} />;
+};
 
 const router = createBrowserRouter([
   {
     path: ROUTES.HOME,
-    element: <div className="p-10"><h1>ProdOpt Platform (Stage 1 Init)</h1><p>Frontend initialized successfully.</p></div>,
+    element: <AuthGuard><Navigate to={ROUTES.PROFILE} /></AuthGuard>, // Для MVP перенаправим в профиль
   },
   {
     path: ROUTES.LOGIN,
-    element: <div>Login Page Placeholder</div>,
+    element: <LoginPage />,
   },
-  // Остальные роуты добавим на соответствующих этапах
+  {
+    path: ROUTES.REGISTER,
+    element: <RegisterPage />,
+  },
+  {
+    path: ROUTES.PROFILE,
+    element: <AuthGuard><ProfilePage /></AuthGuard>,
+  },
 ]);
 
 export const RouterProvider = () => {
