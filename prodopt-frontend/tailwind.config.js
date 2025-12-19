@@ -7,7 +7,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#1677ff', // Цвет Ant Design по умолчанию
+        // Приятный изумрудный цвет (Emerald-500)
+        primary: '#10B981', 
+        // При наведении чуть темнее (Emerald-600)
+        'primary-hover': '#059669',
       }
     },
   },

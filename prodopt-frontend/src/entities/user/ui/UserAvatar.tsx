@@ -17,7 +17,8 @@ export const UserAvatar = ({ name, size = 'default' }: Props) => {
     .slice(0, 2);
 
   return (
-    <Avatar size={size} style={{ backgroundColor: '#1677ff', verticalAlign: 'middle' }}>
+    // Используем hex код зеленого цвета (#10B981)
+    <Avatar size={size} style={{ backgroundColor: '#10B981', verticalAlign: 'middle', fontSize: typeof size === 'number' ? size / 2.5 : undefined }}>
       {initials}
     </Avatar>
   );
