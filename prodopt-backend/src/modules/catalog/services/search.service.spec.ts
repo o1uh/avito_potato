@@ -36,7 +36,6 @@ describe('SearchService', () => {
   it('should build correct DSL query with text search', async () => {
     const searchDto = { q: 'Сыр', limit: 10, offset: 0 };
     
-    // Мок ответа
     mockElasticsearchService.search.mockResolvedValue({
       hits: { total: { value: 0 }, hits: [] },
       aggregations: {},
@@ -44,20 +43,57 @@ describe('SearchService', () => {
 
     await service.search(searchDto);
 
-    // Проверяем аргументы вызова search
+    // Обновляем ожидаемую структуру запроса
     expect(mockElasticsearchService.search).toHaveBeenCalledWith(
       expect.objectContaining({
         index: 'products',
         query: expect.objectContaining({
           bool: expect.objectContaining({
             must: expect.arrayContaining([
+              // Проверяем наличие сложной конструкции bool -> should
               expect.objectContaining({
-                multi_match: expect.objectContaining({
-                  query: 'Сыр',
-                  fields: ['name^3', 'description', 'variants.sku', 'variants.variantName'],
-                }),
-              }),
+                bool: expect.objectContaining({
+                  should: expect.arrayContaining([
+                    // 1. Поиск по тексту
+                    expect.objectContaining({
+                      multi_match: expect.objectContaining({
+                        query: 'Сыр',
+                        fields: ['name^3', 'description', 'supplierName'],
+                      }),
+                    }),
+                    // 2. Поиск по вложенным вариантам
+                    expect.objectContaining({
+                      nested: expect.objectContaining({
+                        path: 'variants',
+                        query: expect.objectContaining({
+                          bool: expect.objectContaining({
+                            should: expect.arrayContaining([
+                              // А. По названию варианта
+                              expect.objectContaining({
+                                match: expect.objectContaining({
+                                  'variants.variantName': expect.objectContaining({ query: 'Сыр' })
+                                })
+                              }),
+                              // Б. По SKU (wildcard)
+                              expect.objectContaining({
+                                wildcard: expect.objectContaining({
+                                  'variants.sku': '*Сыр*'
+                                })
+                              })
+                            ])
+                          })
+                        })
+                      })
+                    })
+                  ]),
+                  minimum_should_match: 1
+                })
+              })
             ]),
+            // Проверяем фильтр статуса (мы его добавили ранее)
+            filter: expect.arrayContaining([
+               expect.objectContaining({ term: { productStatusId: 2 } })
+            ])
           }),
         }),
       }),
