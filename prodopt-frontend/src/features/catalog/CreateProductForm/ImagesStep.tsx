@@ -2,7 +2,7 @@ import { Button, Result, Typography, Divider, Spin, message  } from 'antd';
 import { ImageUploader } from '@/shared/ui/ImageUploader';
 import { productApi } from '@/entities/product/api/product.api';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface Props {
   productId: number;
