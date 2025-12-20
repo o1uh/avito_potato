@@ -51,9 +51,9 @@ export const VariantsStep = ({ onFinish, onBack, isLoading }: Props) => {
                     {...restField}
                     name={[name, 'sku']}
                     label="Артикул (SKU)"
-                    rules={[{ required: true, message: 'Обязательно' }]}
+                    rules={[{ required: false }]} 
                   >
-                    <Input placeholder="ART-001" />
+                    <Input placeholder="Оставьте пустым для автогенерации" />
                   </Form.Item>
 
                   <div className="flex gap-2">
@@ -64,7 +64,13 @@ export const VariantsStep = ({ onFinish, onBack, isLoading }: Props) => {
                       className="flex-1"
                       rules={[{ required: true, message: 'Укажите цену' }]}
                     >
-                      <InputNumber min={0} style={{ width: '100%' }} />
+                      {/* Добавляем max ограничение (например, 99 млн) */}
+                      <InputNumber 
+                        min={0} 
+                        max={99999999} 
+                        style={{ width: '100%' }} 
+                        placeholder="0.00"
+                      />
                     </Form.Item>
                     
                     <Form.Item

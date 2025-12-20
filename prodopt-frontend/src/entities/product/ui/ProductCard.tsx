@@ -12,6 +12,8 @@ interface Props {
   product: Product;
 }
 
+const FALLBACK_IMAGE = "https://placehold.co/300x200?text=No+Image"; 
+
 export const ProductCard = ({ product }: Props) => {
   // Вычисляем диапазон цен на основе вариантов
   const prices = product.variants?.map((v) => Number(v.price)) || [];
@@ -31,7 +33,7 @@ export const ProductCard = ({ product }: Props) => {
   // Главное изображение
   const mainImage = product.images?.find((img) => img.isMain)?.imageUrl || product.images?.[0]?.imageUrl;
   // Заглушка, если фото нет
-  const imageSrc = mainImage || 'https://via.placeholder.com/300x200?text=No+Image';
+  
 
   return (
     <Link to={ROUTES.PRODUCT(product.id)}>
@@ -41,7 +43,10 @@ export const ProductCard = ({ product }: Props) => {
           <div className="h-[200px] overflow-hidden flex items-center justify-center bg-gray-50">
             <img 
               alt={product.name} 
-              src={imageSrc} 
+              src={mainImage || FALLBACK_IMAGE}
+              onError={(e) => {
+                e.currentTarget.src = FALLBACK_IMAGE;
+              }}
               className="object-contain h-full w-full"
             />
           </div>

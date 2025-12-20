@@ -8,7 +8,7 @@ import {
 import { ShopOutlined, ArrowLeftOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { productApi } from '@/entities/product/api/product.api';
 import { formatCurrency } from '@/shared/lib/currency';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { PartnerRequestBtn } from '@/features/networking/PartnerRequestBtn';
 
 const { Title, Text, Paragraph } = Typography;
@@ -17,12 +17,56 @@ export const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [currentImage, setCurrentImage] = useState<string>('');
+  
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ['product', id],
     queryFn: () => productApi.getOne(id!),
     enabled: !!id,
   });
+
+  // Логика фильтрации картинок
+  const displayImages = useMemo(() => {
+    if (!product) return [];
+
+    // 1. Общие картинки (всегда показываем)
+    const commonImages = product.images.filter(img => !img.variantId);
+
+    // 2. Картинки конкретного варианта (если выбран)
+    const variantImages = selectedVariantId 
+        ? product.images.filter(img => img.variantId === selectedVariantId)
+        : [];
+
+    // ОБЪЕДИНЯЕМ: Сначала общие, потом специфичные
+    return [...commonImages, ...variantImages];
+  }, [product, selectedVariantId]);
+
+  // Установка дефолтного варианта и картинки
+  useEffect(() => {
+    if (product && product.variants.length > 0) {
+      if (!selectedVariantId) setSelectedVariantId(product.variants[0].id);
+    }
+  }, [product]);
+
+  // Обновляем главное фото при смене списка картинок
+  useEffect(() => {
+    if (displayImages.length > 0) {
+        // Пытаемся найти первую картинку ИМЕННО выбранного варианта
+        const firstVariantImage = displayImages.find(img => img.variantId === selectedVariantId);
+        
+        if (firstVariantImage) {
+            // Если у варианта есть свои фото - показываем их сразу
+            setCurrentImage(firstVariantImage.imageUrl);
+        } else {
+            // Иначе показываем главную (isMain) или просто первую из общих
+            const main = displayImages.find(i => i.isMain)?.imageUrl || displayImages[0].imageUrl;
+            setCurrentImage(main);
+        }
+    } else {
+        setCurrentImage('');
+    }
+  }, [displayImages, selectedVariantId]);
 
   if (isLoading) return <div className="h-screen flex items-center justify-center"><Spin size="large" /></div>;
   if (isError || !product) return <div className="p-10"><Alert type="error" message="Товар не найден" /></div>;
@@ -52,22 +96,34 @@ export const ProductDetails = () => {
       <Row gutter={[32, 32]}>
         {/* ЛЕВАЯ КОЛОНКА: ГАЛЕРЕЯ */}
         <Col xs={24} md={10} lg={8}>
-          <div className="border rounded-lg overflow-hidden bg-white mb-4">
-            <Image 
-              src={mainImage} 
-              alt={product.name} 
-              width="100%" 
-              className="object-contain max-h-[400px]"
-            />
+          <div className="border rounded-lg overflow-hidden bg-white mb-4 flex items-center justify-center h-[400px]">
+             {currentImage ? (
+                <Image 
+                  src={currentImage} 
+                  alt={product.name} 
+                  className="object-contain max-h-[400px]"
+                />
+             ) : (
+                <div className="text-gray-300">Нет фото</div>
+             )}
           </div>
+          
           <div className="grid grid-cols-4 gap-2">
-            {product.images.map(img => (
-              <Image 
+            {displayImages.map(img => (
+              <div 
                 key={img.id}
-                src={img.imageUrl}
-                className="border rounded cursor-pointer hover:border-primary object-cover h-[80px]"
-                preview={true}
-              />
+                onClick={() => setCurrentImage(img.imageUrl)}
+                className={`
+                  border rounded cursor-pointer h-[80px] overflow-hidden
+                  ${currentImage === img.imageUrl ? 'border-primary border-2' : 'border-gray-200 hover:border-blue-300'}
+                `}
+              >
+                <img 
+                  src={img.imageUrl} 
+                  className="w-full h-full object-cover" 
+                  alt="thumbnail"
+                />
+              </div>
             ))}
           </div>
         </Col>
@@ -90,7 +146,7 @@ export const ProductDetails = () => {
                   <Text type="secondary" className="block mb-2">Варианты фасовки:</Text>
                   <Radio.Group 
                     value={selectedVariantId} 
-                    onChange={e => setSelectedVariantId(e.target.value)}
+                    onChange={e => setSelectedVariantId(e.target.value)} // <--- Это триггерит обновление displayImages
                     buttonStyle="solid"
                   >
                     {product.variants.map(v => (

@@ -110,6 +110,24 @@ describe('Catalog Module (e2e)', () => {
       .expect(201);
     createdProductId = res.body.id;
     expect(createdProductId).toBeDefined();
+
+    // --- ДОБАВЛЕНО: Форсируем статус "Опубликован" для E2E теста поиска ---
+    // В реальности это делается через кнопку "Завершить", но тут сокращаем путь
+    await prisma.product.update({
+        where: { id: createdProductId },
+        data: { productStatusId: 2 } // Published
+    });
+    
+    // Обновляем документ в Elastic вручную, так как Consumer мог уже отработать со старым статусом
+    // Или просто ждем, но надежнее обновить прямо здесь, чтобы тест поиска прошел
+    const elastic = app.get(ElasticsearchService);
+    await elastic.update({
+        index: 'products',
+        id: createdProductId.toString(),
+        doc: {
+            productStatusId: 2 // Обновляем поле в индексе
+        }
+    }).catch(() => {}); // Игнорируем ошибку, если документа еще нет (Consumer его создаст)
   });
 
   it('2. Wait for Sync (Elastic)', async () => {

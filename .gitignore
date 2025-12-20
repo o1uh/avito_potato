@@ -6,3 +6,5 @@ dist/
 project_context.txt
 test-results/
 playwright-report/
+_test_pdfs/
+prodopt-backend/_test_pdfs/
