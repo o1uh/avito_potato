@@ -5,9 +5,9 @@ import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { CompanyPage } from '@/pages/profile/CompanyPage';
 import { StatsPage } from '@/pages/profile/StatsPage';
+import { PartnersPage } from '@/pages/networking/PartnersPage'; // <-- Импорт
 import { useSessionStore } from '@/entities/session/model/store';
 
-// Компонент-защитник для авторизованных зон
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const isAuth = useSessionStore((state) => state.isAuth);
   return isAuth ? <>{children}</> : <Navigate to={ROUTES.LOGIN} />;
@@ -16,7 +16,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
 const router = createBrowserRouter([
   {
     path: ROUTES.HOME,
-    element: <AuthGuard><Navigate to={ROUTES.PROFILE} /></AuthGuard>, // Для MVP перенаправим в профиль
+    element: <AuthGuard><Navigate to={ROUTES.PROFILE} /></AuthGuard>,
   },
   {
     path: ROUTES.LOGIN,
@@ -37,6 +37,10 @@ const router = createBrowserRouter([
   {
     path: '/profile/stats', 
     element: <AuthGuard><StatsPage /></AuthGuard>,
+  },
+  {
+    path: ROUTES.PARTNERS, 
+    element: <AuthGuard><PartnersPage /></AuthGuard>,
   },
 ]);
 
