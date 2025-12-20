@@ -15,6 +15,8 @@ find . -type f | \
     grep -v '/dist/' | \
     grep -v '/build/' | \
     grep -v '/coverage/' | \
+    grep -v '/playwright-report/' | \
+    grep -v '/test-results/' | \
     grep -v '/\.vscode/' | \
     grep -v '/\.idea/' | \
     # 2. Исключаем файлы блокировок и служебные файлы пакетов (если не нужны для контекста)

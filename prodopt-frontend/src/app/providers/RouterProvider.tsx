@@ -3,6 +3,8 @@ import { ROUTES } from '@/shared/config/routes';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
+import { CompanyPage } from '@/pages/profile/CompanyPage';
+import { StatsPage } from '@/pages/profile/StatsPage';
 import { useSessionStore } from '@/entities/session/model/store';
 
 // Компонент-защитник для авторизованных зон
@@ -27,6 +29,14 @@ const router = createBrowserRouter([
   {
     path: ROUTES.PROFILE,
     element: <AuthGuard><ProfilePage /></AuthGuard>,
+  },
+  {
+    path: ROUTES.COMPANY, 
+    element: <AuthGuard><CompanyPage /></AuthGuard>,
+  },
+  {
+    path: '/profile/stats', 
+    element: <AuthGuard><StatsPage /></AuthGuard>,
   },
 ]);
 

@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { jest } from '@jest/globals';
 
 // Мок для matchMedia (нужен для Ant Design)
 Object.defineProperty(window, 'matchMedia', {
