@@ -3,7 +3,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { CompaniesService } from '../services/companies.service';
 import { BankingService } from '../services/banking.service';
-import { CreateCompanyDto, CheckInnDto } from '../dto/company.dto';
+import { CreateCompanyDto, CheckInnDto, CreateAddressDto } from '../dto/company.dto';
+import { AddressesService } from '../services/addresses.service'; 
 import { AddBankAccountDto } from '../dto/banking.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -18,6 +19,7 @@ export class CompaniesController {
     private readonly companiesService: CompaniesService,
     private readonly bankingService: BankingService,
     private readonly storageService: StorageService,
+    private readonly addressesService: AddressesService,
   ) {}
 
   @Post('check-inn')
@@ -75,4 +77,13 @@ export class CompaniesController {
     const { key } = await this.storageService.upload(file, 'company-logos');
     return this.companiesService.uploadLogo(companyId, key);
   }
+  @Post('addresses')
+  @ApiOperation({ summary: 'Добавить адрес компании' })
+  async addAddress(
+    @CurrentUser('companyId') companyId: number,
+    @Body() dto: CreateAddressDto, // Не забудь импортировать DTO
+  ) {
+    return this.addressesService.addAddressToCompany(companyId, dto);
+  }
 }
+

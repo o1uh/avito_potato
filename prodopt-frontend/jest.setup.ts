@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { jest } from '@jest/globals';
 
 // Мок для matchMedia (нужен для Ant Design)
 Object.defineProperty(window, 'matchMedia', {
@@ -23,3 +24,10 @@ jest.mock('@/shared/config/env', () => ({
     DEV: true,
   },
 }));
+
+// Fix for Ant Design 5 "Not implemented: window.getComputedStyle"
+Object.defineProperty(window, 'getComputedStyle', {
+  value: () => ({
+    getPropertyValue: () => '',
+  }),
+});

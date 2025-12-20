@@ -1,7 +1,9 @@
-import { Descriptions, Card, Tag } from 'antd';
+import { Descriptions, Card, Tag, Button} from 'antd'; // Добавил Button, Space
 import { useSessionStore } from '@/entities/session/model/store';
 import { LogoutButton } from '@/features/auth/LogoutButton';
 import { UserAvatar } from '@/entities/user/ui/UserAvatar';
+import { Link } from 'react-router-dom'; // Импорт Link
+import { ROUTES } from '@/shared/config/routes'; // Импорт путей
 
 export const ProfilePage = () => {
   const user = useSessionStore((state) => state.user);
@@ -11,13 +13,25 @@ export const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-10">
       <div className="max-w-4xl mx-auto">
-        {/* Карточка AntD уже стилизована через ThemeProvider, но добавим класс для рамки */}
+        
+        {/* --- ВРЕМЕННАЯ НАВИГАЦИЯ --- */}
+        <div className="mb-6 flex gap-4">
+            <Link to={ROUTES.COMPANY}>
+                <Button>🏢 Моя компания</Button>
+            </Link>
+            <Link to="/profile/stats">
+                <Button>📊 Аналитика</Button>
+            </Link>
+        </div>
+        {/* --------------------------- */}
+
         <Card 
           title={<span className="text-lg">Профиль пользователя</span>}
           extra={<LogoutButton />}
           className="shadow-sm border-gray-200"
-          style={{ borderColor: '#E5E7EB' }} // Явное указание цвета границы
+          style={{ borderColor: '#E5E7EB' }}
         >
+          {/* ... остальной код профиля без изменений ... */}
           <div className="flex items-center mb-8 gap-5 p-4 bg-gray-50 rounded-lg border border-gray-100">
             <UserAvatar name={user.fullName} size={80} />
             <div>

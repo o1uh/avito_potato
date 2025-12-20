@@ -9,6 +9,27 @@ export interface Address {
   building?: string;
   apartment?: string;
   comment?: string;
+  // Тип адреса (Юридический, Склад и т.д.)
+  addressType?: { id: number; name: string };
+}
+
+export interface BankAccount {
+  id: number;
+  bankName: string;
+  bik: string;
+  checkingAccount: string;
+  correspondentAccount: string;
+  isPrimary: boolean;
+}
+
+export interface TeamMember {
+  id: number;
+  fullName: string;
+  email: string;
+  roleInCompanyId: number;
+  position?: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export interface Company {
@@ -21,16 +42,14 @@ export interface Company {
   rating: number;
   organizationTypeId: number;
   verificationStatusId?: number;
+  addresses?: { address: Address; addressType: { name: string } }[];
+  paymentDetails?: BankAccount[];
 }
 
-export interface User {
-  id: number;
-  fullName: string;
-  email: string;
-  phone?: string;
-  position?: string;
-  isActive: boolean;
-  companyId: number;
-  roleInCompanyId: number;
-  company?: Company;
+export interface CompanyStats {
+  totalSales: number;
+  totalPurchases: number;
+  salesVolume: number;
+  purchasesVolume: number;
+  message?: string;
 }
