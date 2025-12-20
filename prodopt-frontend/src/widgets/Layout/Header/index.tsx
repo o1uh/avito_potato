@@ -1,5 +1,5 @@
 import { Layout, Menu, Button, Dropdown, Avatar, Space } from 'antd';
-import { UserOutlined, LogoutOutlined, AppstoreOutlined, ShoppingOutlined } from '@ant-design/icons';
+import { UserOutlined, LogoutOutlined, AppstoreOutlined, ShoppingOutlined, TeamOutlined } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { ROUTES } from '@/shared/config/routes';
 import { useSessionStore } from '@/entities/session/model/store';
@@ -16,7 +16,7 @@ export const Header = () => {
   const menuItems = [
     { key: ROUTES.CATALOG, label: <Link to={ROUTES.CATALOG}>Каталог</Link>, icon: <ShoppingOutlined /> },
     { key: ROUTES.DEALS, label: <Link to={ROUTES.DEALS}>Сделки</Link>, icon: <AppstoreOutlined /> },
-    { key: ROUTES.PARTNERS, label: <Link to={ROUTES.PARTNERS}>Партнеры</Link>, icon: <UserOutlined /> },
+    { key: ROUTES.PARTNERS, label: <Link to={ROUTES.PARTNERS}>Партнеры</Link>, icon: <TeamOutlined /> },
   ];
 
   const userMenu = {
@@ -69,7 +69,7 @@ export const Header = () => {
       <div className="flex items-center gap-4">
         {isAuth ? (
           <>
-            {/* Колокольчик уведомлений */}
+            {/* Колокольчик уведомлений (Включает в себя кнопку Test Notify, если она добавлена в NotificationBell) */}
             <NotificationBell />
 
             {/* Профиль пользователя */}

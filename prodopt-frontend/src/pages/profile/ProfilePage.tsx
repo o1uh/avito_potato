@@ -3,7 +3,6 @@ import { useSessionStore } from '@/entities/session/model/store';
 import { LogoutButton } from '@/features/auth/LogoutButton';
 import { UserAvatar } from '@/entities/user/ui/UserAvatar';
 import { Link } from 'react-router-dom';
-import { ROUTES } from '@/shared/config/routes';
 
 export const ProfilePage = () => {
   const user = useSessionStore((state) => state.user);
@@ -11,23 +10,14 @@ export const ProfilePage = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-10">
+    <div className="p-10">
       <div className="max-w-4xl mx-auto">
         
-        {/* --- НАВИГАЦИЯ --- */}
+        {/* --- НАВИГАЦИЯ (Дубли удалены) --- */}
         <div className="mb-6 flex gap-4">
-            <Link to={ROUTES.COMPANY}>
-                <Button>🏢 Моя компания</Button>
-            </Link>
+            {/* Кнопка Аналитики пока уникальна для этой страницы */}
             <Link to="/profile/stats">
                 <Button>📊 Аналитика</Button>
-            </Link>
-            {/* Добавлена кнопка Партнеры */}
-            <Link to={ROUTES.PARTNERS}>
-                <Button type="primary" ghost>🤝 Партнеры</Button>
-            </Link>
-            <Link to={ROUTES.CATALOG}>
-                <Button type="primary">📦 Каталог товаров</Button>
             </Link>
         </div>
         {/* --------------------------- */}

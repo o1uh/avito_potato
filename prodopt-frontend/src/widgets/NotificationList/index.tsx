@@ -11,13 +11,11 @@ export const NotificationList = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // Получение уведомлений
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
-    queryFn: () => notifyApi.getMy(false, 20), // 20 последних
+    queryFn: () => notifyApi.getMy(false, 20),
   });
 
-  // Мутация: Прочитать одно
   const readMutation = useMutation({
     mutationFn: notifyApi.markRead,
     onSuccess: () => {
@@ -25,7 +23,6 @@ export const NotificationList = () => {
     },
   });
 
-  // Мутация: Прочитать все
   const readAllMutation = useMutation({
     mutationFn: notifyApi.readAll,
     onSuccess: () => {
@@ -33,11 +30,28 @@ export const NotificationList = () => {
     },
   });
 
+  // Логика перехода при клике
   const handleNavigate = (item: Notification) => {
+    // 1. Сначала помечаем как прочитанное (если еще не)
+    if (!item.isRead) {
+      readMutation.mutate(item.id);
+    }
+
+    // 2. Логика перехода в зависимости от типа сущности
     if (item.entityType === 'deal' && item.entityId) {
       navigate(ROUTES.DEAL_DETAILS(item.entityId));
+      return;
     }
-    // Здесь можно добавить переходы для других сущностей (spores, tickets)
+
+    // Если это уведомление о партнерстве (мы на бэке ставили type='system', 
+    // но можем определить по тексту или добавить тип 'partnership' в будущем)
+    const lowerTitle = item.title.toLowerCase();
+    if (lowerTitle.includes('партнер') || lowerTitle.includes('запрос')) {
+      navigate(ROUTES.PARTNERS);
+      return;
+    }
+    
+    // Для остальных просто остаемся на месте (уведомление уже прочиталось)
   };
 
   if (isLoading) {
@@ -47,23 +61,24 @@ export const NotificationList = () => {
   const listData = data?.data || [];
 
   return (
-    <div className="w-[350px] max-h-[500px] flex flex-col">
-      <div className="flex justify-between items-center px-4 py-3 border-b bg-white sticky top-0 z-10">
-        <Typography.Text strong>Уведомления</Typography.Text>
+    // Увеличили ширину до 400px для комфортного чтения
+    <div className="w-[400px] max-h-[500px] flex flex-col bg-white rounded-lg shadow-lg">
+      <div className="flex justify-between items-center px-4 py-3 border-b bg-white sticky top-0 z-10 rounded-t-lg">
+        <Typography.Text strong className="text-base">Уведомления</Typography.Text>
         {listData.some(n => !n.isRead) && (
           <Button 
             type="link" 
             size="small" 
             icon={<CheckOutlined />} 
             onClick={() => readAllMutation.mutate()}
-            className="p-0"
+            className="p-0 text-xs"
           >
             Все прочитаны
           </Button>
         )}
       </div>
 
-      <div className="overflow-y-auto flex-1">
+      <div className="overflow-y-auto flex-1 custom-scrollbar">
         {listData.length > 0 ? (
           <List
             itemLayout="horizontal"
@@ -77,7 +92,7 @@ export const NotificationList = () => {
             )}
           />
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет уведомлений" className="my-8" />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Нет новых уведомлений" className="my-10" />
         )}
       </div>
     </div>

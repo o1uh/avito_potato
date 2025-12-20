@@ -79,9 +79,6 @@ export const ProductDetails = () => {
     setSelectedVariantId(product.variants[0].id);
   }
 
-  // Главное изображение
-  const mainImage = product.images.find(i => i.isMain)?.imageUrl || product.images[0]?.imageUrl;
-
   return (
     <div className="max-w-7xl mx-auto p-6">
       <Button 

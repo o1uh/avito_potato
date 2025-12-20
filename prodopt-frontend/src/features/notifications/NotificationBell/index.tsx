@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Badge, Popover, notification } from 'antd';
+import { Badge, Popover, notification, Button, message } from 'antd';
 import { BellOutlined } from '@ant-design/icons';
 import { useSocket } from '@/app/providers/SocketProvider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,12 +12,11 @@ export const NotificationBell = () => {
   const queryClient = useQueryClient();
   const isAuth = useSessionStore((state) => state.isAuth);
 
-  // Запрашиваем количество непрочитанных при загрузке
   const { data } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => notifyApi.getMy(false, 20),
-    enabled: isAuth, // Только если авторизован
-    refetchInterval: 60000, // Поллинг раз в минуту на всякий случай
+    enabled: isAuth,
+    refetchInterval: 60000, 
   });
 
   const unreadCount = data?.meta?.unreadCount || 0;
@@ -25,23 +24,18 @@ export const NotificationBell = () => {
   useEffect(() => {
     if (!socket || !isAuth) return;
 
-    // Подписка на личные уведомления
-    // Бэкенд должен отправлять событие 'notification' в комнату пользователя
     socket.on('notification', (payload: any) => {
-      // 1. Обновляем список (инвалидируем кэш)
+      // 1. Инвалидируем кэш, чтобы список обновился (и счетчик)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
-      // 2. Показываем всплывающее уведомление (Toast)
+      // 2. Показываем всплывающее уведомление
       notification.open({
         message: payload.title || 'Новое уведомление',
         description: payload.message,
         placement: 'bottomRight',
         duration: 4,
         type: payload.type?.toLowerCase() || 'info',
-        onClick: () => {
-          // Здесь можно добавить логику перехода, если нужно
-          console.log('Notification clicked', payload);
-        },
+        // Можно добавить иконку, если тип SUCCESS и т.д.
       });
     });
 
@@ -50,21 +44,39 @@ export const NotificationBell = () => {
     };
   }, [socket, isAuth, queryClient]);
 
+  // --- ОБНОВЛЕННАЯ ФУНКЦИЯ ---
+  const handleTestNotification = async () => {
+    try {
+      await notifyApi.sendTest();
+      message.success('Запрос отправлен на сервер...');
+    } catch (e) {
+      message.error('Ошибка отправки теста');
+    }
+  };
+  // ---------------------------
+
   if (!isAuth) return null;
 
   return (
-    <Popover 
-      content={<NotificationList />} 
-      trigger="click" 
-      placement="bottomRight"
-      overlayClassName="p-0"
-      overlayInnerStyle={{ padding: 0 }}
-    >
-      <div className="cursor-pointer px-2 flex items-center">
-        <Badge count={unreadCount} overflowCount={99} size="small">
-          <BellOutlined style={{ fontSize: '20px', color: '#4B5563' }} />
-        </Badge>
-      </div>
-    </Popover>
+    <div className="flex items-center gap-3">
+      {/* Кнопка теперь отправляет запрос на сервер */}
+      <Button size="small" onClick={handleTestNotification} type="dashed">
+        Test API
+      </Button>
+
+      <Popover 
+        content={<NotificationList />} 
+        trigger="click" 
+        placement="bottomRight"
+        overlayClassName="p-0"
+        overlayInnerStyle={{ padding: 0 }}
+      >
+        <div className="cursor-pointer px-2 flex items-center">
+          <Badge count={unreadCount} overflowCount={99} size="small">
+            <BellOutlined style={{ fontSize: '20px', color: '#4B5563' }} />
+          </Badge>
+        </div>
+      </Popover>
+    </div>
   );
 };
