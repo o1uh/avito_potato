@@ -64,4 +64,36 @@ export class AddressesService {
     ];
     return parts.filter(p => p).join(', ');
   }
+
+  // В класс AddressesService добавь этот метод:
+
+  async addAddressToCompany(companyId: number, dto: any) { // dto: CreateAddressDto
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Создаем адрес
+      const address = await tx.address.create({
+        data: {
+          country: dto.country,
+          city: dto.city,
+          street: dto.street,
+          house: dto.house,
+          region: dto.region,
+          building: dto.building,
+          apartment: dto.apartment,
+          postalCode: dto.postalCode,
+          comment: dto.comment,
+        },
+      });
+
+      // 2. Связываем с компанией
+      await tx.companyAddress.create({
+        data: {
+          companyId,
+          addressId: address.id,
+          addressTypeId: dto.addressTypeId,
+        },
+      });
+
+      return address;
+    });
+  }
 }

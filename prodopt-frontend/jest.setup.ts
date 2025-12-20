@@ -24,3 +24,10 @@ jest.mock('@/shared/config/env', () => ({
     DEV: true,
   },
 }));
+
+// Fix for Ant Design 5 "Not implemented: window.getComputedStyle"
+Object.defineProperty(window, 'getComputedStyle', {
+  value: () => ({
+    getPropertyValue: () => '',
+  }),
+});

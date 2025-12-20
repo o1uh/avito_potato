@@ -1,7 +1,7 @@
 import { Form, Modal, message } from 'antd';
 import { Input } from '@/shared/ui/Input';
 import { Button } from '@/shared/ui/Button';
-import { Select } from '@/shared/ui/Select'; // Используем нашу обертку или Antd
+import { Select } from '@/shared/ui/Select'; 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { companyApi } from '@/entities/user/api/company.api';
@@ -14,15 +14,15 @@ export const AddAddressForm = () => {
   const mutation = useMutation({
     mutationFn: companyApi.addAddress,
     onSuccess: () => {
-      message.success('Адрес добавлен');
+      message.success('Адрес успешно добавлен');
       setIsModalOpen(false);
       form.resetFields();
+      // Обновляем данные компании, чтобы увидеть новый адрес
       queryClient.invalidateQueries({ queryKey: ['myCompany'] });
     },
-    onError: () => {
-      // Покажем заглушку, т.к. на бэкенде в текущем контексте нет эндпоинта
-      message.warning('Функционал добавления адресов в разработке (API 404)');
-      setIsModalOpen(false);
+    onError: (error: any) => {
+      console.error(error);
+      message.error('Ошибка при сохранении адреса');
     },
   });
 
@@ -40,13 +40,18 @@ export const AddAddressForm = () => {
         onCancel={() => setIsModalOpen(false)}
         footer={null}
       >
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ country: 'Россия' }}>
+        <Form 
+            form={form} 
+            layout="vertical" 
+            onFinish={onFinish} 
+            initialValues={{ country: 'Россия', addressTypeId: 3 }} // Default: Склад
+        >
           <Form.Item label="Тип адреса" name="addressTypeId" rules={[{ required: true }]}>
             <Select
               options={[
                 { value: 2, label: 'Фактический' },
-                { value: 3, label: 'Склад' },
-                { value: 4, label: 'Почтовый' },
+                { value: 3, label: 'Почтовый' },
+                { value: 4, label: 'Склад' },
               ]}
             />
           </Form.Item>
@@ -59,17 +64,17 @@ export const AddAddressForm = () => {
             <Form.Item label="Регион/Область" name="region">
               <Input />
             </Form.Item>
-            <Form.Item label="Город" name="city" rules={[{ required: true }]}>
+            <Form.Item label="Город" name="city" rules={[{ required: true, message: 'Укажите город' }]}>
               <Input />
             </Form.Item>
           </div>
 
-          <Form.Item label="Улица" name="street" rules={[{ required: true }]}>
+          <Form.Item label="Улица" name="street" rules={[{ required: true, message: 'Укажите улицу' }]}>
             <Input />
           </Form.Item>
 
           <div className="grid grid-cols-3 gap-4">
-            <Form.Item label="Дом" name="house" rules={[{ required: true }]}>
+            <Form.Item label="Дом" name="house" rules={[{ required: true, message: 'Номер дома' }]}>
               <Input />
             </Form.Item>
             <Form.Item label="Строение" name="building">
@@ -79,9 +84,13 @@ export const AddAddressForm = () => {
               <Input />
             </Form.Item>
           </div>
+          
+          <Form.Item label="Индекс" name="postalCode">
+              <Input />
+          </Form.Item>
 
           <Form.Item label="Комментарий" name="comment">
-            <Input.TextArea rows={2} />
+            <Input.TextArea rows={2} placeholder="Часы работы, как проехать..." />
           </Form.Item>
 
           <div className="flex justify-end gap-2">
