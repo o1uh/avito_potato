@@ -12,7 +12,7 @@ export class ProductMediaService {
     @InjectQueue('catalog-sync') private syncQueue: Queue, // <--- Внедрение очереди
   ) {}
 
-  async uploadImage(productId: number, supplierId: number, file: Express.Multer.File) {
+   async uploadImage(productId: number, supplierId: number, file: Express.Multer.File, variantId?: number) {
     // 1. Проверка прав
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Товар не найден');
@@ -25,20 +25,23 @@ export class ProductMediaService {
 
     // 3. Проверка: есть ли уже фото? Если нет, это будет главное фото.
     const count = await this.prisma.productImage.count({ where: { productId } });
-    const isMain = count === 0;
+    let isMain = false;
+    if (!variantId) {
+       const count = await this.prisma.productImage.count({ where: { productId, variantId: null } });
+       isMain = count === 0;
+    }
 
-    // 4. Сохранение в БД
+    // 4. Сохранение
     const image = await this.prisma.productImage.create({
       data: {
         productId,
         imageUrl: url,
         isMain,
+        variantId: variantId || null, // Пишем связь
       },
     });
 
-    // 5. ВАЖНО: Обновляем индекс в Elastic, чтобы фото появилось в каталоге
-    await this.syncQueue.add('index-product', { productId }); // <--- Добавлено
-
+    await this.syncQueue.add('index-product', { productId });
     return image;
   }
 

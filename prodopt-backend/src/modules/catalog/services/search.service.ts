@@ -15,14 +15,55 @@ export class SearchService {
     const mustQueries: any[] = [];
     const filterQueries: any[] = [];
 
+    filterQueries.push({ term: { productStatusId: 2 } });
     // 1. Полнотекстовый поиск
     if (q) {
       mustQueries.push({
-        multi_match: {
-          query: q,
-          fields: ['name^3', 'description', 'variants.sku', 'variants.variantName'],
-          fuzziness: 'AUTO',
-        },
+        bool: {
+          should: [
+            // 1. Поиск по основным полям (Название, Описание) - они text
+            {
+              multi_match: {
+                query: q,
+                fields: ['name^3', 'description', 'supplierName'], 
+                fuzziness: 'AUTO',
+              },
+            },
+            // 2. Поиск по вложенным вариантам
+            {
+              nested: {
+                path: 'variants',
+                query: {
+                  bool: {
+                    should: [
+                      // Поиск по названию варианта (это текст -> match)
+                      {
+                        match: {
+                          'variants.variantName': {
+                            query: q,
+                            fuzziness: 'AUTO'
+                          }
+                        }
+                      },
+                      // Поиск по SKU (это keyword -> wildcard)
+                      // Оборачиваем в *q*, чтобы искало частичное совпадение
+                      // Внимание: wildcard регистрозависим для keyword! 
+                      // Если SKU "ABC", поиск "abc" может не найти. 
+                      // Для идеального поиска SKU лучше в маппинге делать его text или normalizer.
+                      // Но чтобы починить ошибку сейчас:
+                      {
+                        wildcard: {
+                          'variants.sku': `*${q}*`
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          minimum_should_match: 1 
+        }
       });
     } else {
       mustQueries.push({ match_all: {} });
@@ -46,6 +87,7 @@ export class SearchService {
           },
         },
       });
+      
     }
 
     try {

@@ -23,12 +23,23 @@ export const productApi = {
   },
   
   // Загрузка изображений
-  uploadImage: async (productId: number, file: File) => {
+  uploadImage: async (productId: number, file: File, variantId?: number) => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await $api.post(`/products/${productId}/images`, formData, {
+    
+    // Формируем URL с параметром variantId, если он передан
+    const url = variantId 
+        ? `/products/${productId}/images?variantId=${variantId}` 
+        : `/products/${productId}/images`;
+
+    const response = await $api.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return response.data;
+  },
+
+  publish: async (id: number) => {
+    const response = await $api.patch<Product>(`/products/${id}/publish`);
     return response.data;
   }
 };

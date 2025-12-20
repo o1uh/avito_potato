@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, InternalServerErrorException  } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { CreateProductDto, UpdateProductDto } from '../dto/catalog.dto';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class ProductsService {
@@ -11,22 +12,61 @@ export class ProductsService {
     @InjectQueue('catalog-sync') private syncQueue: Queue,
   ) {}
 
+  private async generateUniqueSku(prefix = 'PRD'): Promise<string> {
+    let sku = '';
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (!isUnique && attempts < maxAttempts) {
+      // 1. Генерируем кандидат
+      // Используем 3 байта (6 символов) + timestamp, это очень надежно
+      const randomPart = randomBytes(3).toString('hex').toUpperCase();
+      const timestamp = Date.now().toString().slice(-4); 
+      sku = `${prefix}-${timestamp}-${randomPart}`;
+
+      // 2. Проверяем в БД (легкий запрос, так как поле sku индексировано)
+      const existing = await this.prisma.productVariant.findUnique({
+        where: { sku },
+      });
+
+      if (!existing) {
+        isUnique = true;
+      } else {
+        attempts++;
+      }
+    }
+
+    if (!isUnique) {
+      throw new InternalServerErrorException('Не удалось сгенерировать уникальный артикул. Попробуйте еще раз.');
+    }
+
+    return sku;
+  }
+
   async create(supplierId: number, dto: CreateProductDto) {
+    // Подготовка вариантов. Так как generateUniqueSku асинхронный, используем Promise.all
+    const variantsData = await Promise.all(
+      dto.variants.map(async (v) => ({
+        variantName: v.variantName,
+        // Если SKU передан юзером — используем его. 
+        // Если нет — генерируем гарантированно уникальный.
+        sku: v.sku ? v.sku : await this.generateUniqueSku(),
+        price: v.price,
+        minOrderQuantity: v.minOrderQuantity,
+        measurementUnitId: v.measurementUnitId,
+      }))
+    );
+
     const product = await this.prisma.product.create({
       data: {
         name: dto.name,
         description: dto.description,
         supplierCompanyId: supplierId,
         productCategoryId: dto.productCategoryId,
-        productStatusId: 1, 
+        productStatusId: 1, // Draft
         variants: {
-          create: dto.variants.map((v) => ({
-            variantName: v.variantName,
-            sku: v.sku,
-            price: v.price,
-            minOrderQuantity: v.minOrderQuantity,
-            measurementUnitId: v.measurementUnitId,
-          })),
+          create: variantsData, // Вставляем подготовленный массив
         },
       },
       include: { variants: true },
@@ -56,7 +96,6 @@ export class ProductsService {
     return product;
   }
 
-  // --- ОБНОВЛЕННЫЙ МЕТОД UPDATE ---
   async update(id: number, supplierId: number, dto: UpdateProductDto) {
     const product = await this.prisma.product.findUnique({ where: { id } });
 
@@ -64,7 +103,16 @@ export class ProductsService {
     if (product.supplierCompanyId !== supplierId) {
       throw new ForbiddenException('Вы можете редактировать только свои товары');
     }
-
+    const variantsData = await Promise.all(
+      dto.variants.map(async (v) => ({
+        productId: id,
+        variantName: v.variantName,
+        sku: v.sku ? v.sku : await this.generateUniqueSku(),
+        price: v.price,
+        minOrderQuantity: v.minOrderQuantity,
+        measurementUnitId: v.measurementUnitId,
+      }))
+    );
     // Выполняем в транзакции: обновление инфо + перезапись вариантов
     const updatedProduct = await this.prisma.$transaction(async (tx) => {
       // 1. Обновляем основные поля
@@ -86,16 +134,9 @@ export class ProductsService {
 
       // 3. Создаем новые варианты
       await tx.productVariant.createMany({
-        data: dto.variants.map((v) => ({
-          productId: id,
-          variantName: v.variantName,
-          sku: v.sku,
-          price: v.price,
-          minOrderQuantity: v.minOrderQuantity,
-          measurementUnitId: v.measurementUnitId,
-        })),
+        data: variantsData,
       });
-
+      
       return p;
     });
 
@@ -128,5 +169,29 @@ export class ProductsService {
       where: { supplierCompanyId: supplierId },
       include: { variants: true, status: true, category: true, images: true },
     });
+  }
+
+  async publish(id: number, supplierId: number) {
+    const product = await this.prisma.product.findUnique({ where: { id }, include: { images: true } });
+
+    if (!product) throw new NotFoundException('Товар не найден');
+    if (product.supplierCompanyId !== supplierId) {
+      throw new ForbiddenException('Нет прав');
+    }
+
+    // БИЗНЕС-ЛОГИКА: Нельзя публиковать без фото
+    if (product.images.length === 0) {
+        throw new BadRequestException('Нельзя опубликовать товар без изображений');
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { productStatusId: 2 }, // 2 = Опубликован (Published)
+    });
+
+    // Обновляем индекс в Elastic, чтобы товар появился в поиске (или обновил статус)
+    await this.syncQueue.add('index-product', { productId: id });
+
+    return updated;
   }
 }

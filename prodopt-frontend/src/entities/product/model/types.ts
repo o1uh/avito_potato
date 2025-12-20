@@ -4,6 +4,7 @@ export interface ProductImage {
   id: number;
   imageUrl: string;
   isMain: boolean;
+  variantId?: number | null;
 }
 
 export interface ProductCategory {

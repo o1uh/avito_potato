@@ -60,6 +60,18 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
       - elasticsearch
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minio_admin minio_password;
+      /usr/bin/mc mb myminio/prodopt-files;
+      /usr/bin/mc anonymous set public myminio/prodopt-files;
+      exit 0;
+      "
 
 volumes:
   pg_data:

@@ -117,7 +117,10 @@ model ProductImage {
   isMain    Boolean @default(false) @map("is_main")
   productId Int     @map("product_id")
 
+  variantId Int?    @map("variant_id")
+
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   @@map("product_images")
 }
@@ -139,6 +142,7 @@ model ProductVariant {
   purchaseRequests PurchaseRequest[]
   offerItems       OfferItem[]
   dealItems       DealItem[]
+  images           ProductImage[] 
 
   @@index([sku])
   @@map("product_variants")

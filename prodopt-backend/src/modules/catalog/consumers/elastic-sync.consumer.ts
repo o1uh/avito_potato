@@ -61,6 +61,7 @@ export class ElasticSyncConsumer extends WorkerHost {
       supplierId: product.supplierCompanyId,
       supplierName: product.supplier.name, // <--- Добавляем имя поставщика в индекс
       updatedAt: product.updatedAt,
+      productStatusId: product.productStatusId,
       variants: product.variants.map((v) => ({
         sku: v.sku,
         variantName: v.variantName,
