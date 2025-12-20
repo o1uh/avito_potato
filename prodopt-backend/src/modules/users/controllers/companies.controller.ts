@@ -11,8 +11,6 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { StorageService } from '../../../common/providers/storage.service';
 
 @ApiTags('Companies')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('companies')
 export class CompaniesController {
   constructor(
@@ -29,6 +27,8 @@ export class CompaniesController {
   }
 
   @Post()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Создание/Регистрация новой компании пользователем' })
   async create(
     @CurrentUser('sub') userId: number,
@@ -38,6 +38,8 @@ export class CompaniesController {
   }
 
   @Get('my')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Получить компанию текущего пользователя' })
   async getMyCompany(@CurrentUser() user: any) {
     // Теперь user.companyId доступен благодаря изменениям в AuthService и JwtStrategy
@@ -45,6 +47,8 @@ export class CompaniesController {
   }
 
   @Post('banking')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Добавление расчетного счета' })
   async addBankAccount(
     @CurrentUser() user: any,
@@ -55,6 +59,8 @@ export class CompaniesController {
   }
 
   @Post(':id/logo')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -78,6 +84,8 @@ export class CompaniesController {
     return this.companiesService.uploadLogo(companyId, key);
   }
   @Post('addresses')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Добавить адрес компании' })
   async addAddress(
     @CurrentUser('companyId') companyId: number,
