@@ -1,37 +1,34 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Table, Tabs, Tag, Typography, Card, Empty } from 'antd';
+import { Table, Tabs, Tag, Typography, Card, Empty, Input, Space } from 'antd'; // Добавлены Input, Space
 import { partnerApi } from '@/entities/partner/api/partner.api';
 import { usePermission } from '@/shared/lib/permissions';
 import { PartnerRequestBtn } from '@/features/networking/PartnerRequestBtn';
 import { Loader } from '@/shared/ui/Loader';
-import { RequestStatus, CooperationRequest } from '@/entities/partner/model/types';
+import { RequestStatus, CooperationRequest } from '@/entities/partner/model/types'; // Импорт типов
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export const PartnersPage = () => {
   const { companyId } = usePermission();
+  const [debugPartnerId, setDebugPartnerId] = useState(''); // Стейт для тест-инпута
   
   const { data: requests, isLoading } = useQuery({
     queryKey: ['partners'],
     queryFn: partnerApi.getRequests,
-    // Включаем обновление, так как статусы могут меняться
     staleTime: 1000 * 60, 
   });
 
   if (isLoading) return <Loader />;
 
-  // 1. Фильтрация данных
-  
-  // Мои партнеры (Status = APPROVED)
-  // Мы ищем записи, где статус 2, и мы либо инициатор, либо получатель.
+  // --- Логика фильтрации ---
+  // Используем request_status_id (snake_case, как приходит с бэкенда/описано в типах)
   const partners = requests?.filter(r => r.request_status_id === RequestStatus.APPROVED) || [];
-
-  // Входящие запросы (Status = PENDING и получатель = мы)
+  
   const incomingRequests = requests?.filter(
     r => r.request_status_id === RequestStatus.PENDING && r.recipient_company_id === companyId
   ) || [];
-
-  // Исходящие запросы (Status = PENDING и инициатор = мы)
+  
   const outgoingRequests = requests?.filter(
     r => r.request_status_id === RequestStatus.PENDING && r.initiator_company_id === companyId
   ) || [];
@@ -43,7 +40,6 @@ export const PartnersPage = () => {
       title: 'Компания',
       key: 'company',
       render: (_: any, record: CooperationRequest) => {
-        // Определяем, кто "другой" участник
         const isInitiator = record.initiator_company_id === companyId;
         const partner = isInitiator ? record.recipientCompany : record.initiatorCompany;
         return (
@@ -56,7 +52,7 @@ export const PartnersPage = () => {
     },
     {
       title: 'Дата начала',
-      dataIndex: 'updated_at',
+      dataIndex: 'updatedAt', // Используем updatedAt (camelCase от Prisma) или updated_at (если поправили типы)
       key: 'date',
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
     },
@@ -166,8 +162,35 @@ export const PartnersPage = () => {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       <Title level={2}>Деловые связи</Title>
+
+      {/* --- ВРЕМЕННЫЙ БЛОК ДЛЯ ТЕСТИРОВАНИЯ --- */}
+      <Card className="shadow-sm border-orange-200 bg-orange-50">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Text strong type="warning">🛠 Инструмент тестирования (пока нет Каталога)</Text>
+          <div className="flex gap-4 items-center">
+            <Input 
+              placeholder="ID Компании партнера" 
+              value={debugPartnerId}
+              onChange={(e) => setDebugPartnerId(e.target.value)}
+              style={{ width: 200 }}
+            />
+            {debugPartnerId && (
+              <PartnerRequestBtn 
+                status="NONE" 
+                targetCompanyId={Number(debugPartnerId)} 
+                companyName={`Компания #${debugPartnerId}`} 
+              />
+            )}
+          </div>
+          <Text type="secondary" className="text-xs">
+            Введите ID другой компании (посмотрите в БД или Swagger), чтобы отправить запрос.
+          </Text>
+        </Space>
+      </Card>
+      {/* --------------------------------------- */}
+
       <Card className="shadow-sm">
         <Tabs defaultActiveKey="1" items={items} />
       </Card>
