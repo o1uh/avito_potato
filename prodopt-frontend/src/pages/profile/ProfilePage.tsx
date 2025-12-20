@@ -1,9 +1,9 @@
-import { Descriptions, Card, Tag, Button} from 'antd'; // Добавил Button, Space
+import { Descriptions, Card, Tag, Button } from 'antd';
 import { useSessionStore } from '@/entities/session/model/store';
 import { LogoutButton } from '@/features/auth/LogoutButton';
 import { UserAvatar } from '@/entities/user/ui/UserAvatar';
-import { Link } from 'react-router-dom'; // Импорт Link
-import { ROUTES } from '@/shared/config/routes'; // Импорт путей
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/shared/config/routes';
 
 export const ProfilePage = () => {
   const user = useSessionStore((state) => state.user);
@@ -14,13 +14,17 @@ export const ProfilePage = () => {
     <div className="min-h-screen bg-gray-50 p-10">
       <div className="max-w-4xl mx-auto">
         
-        {/* --- ВРЕМЕННАЯ НАВИГАЦИЯ --- */}
+        {/* --- НАВИГАЦИЯ --- */}
         <div className="mb-6 flex gap-4">
             <Link to={ROUTES.COMPANY}>
                 <Button>🏢 Моя компания</Button>
             </Link>
             <Link to="/profile/stats">
                 <Button>📊 Аналитика</Button>
+            </Link>
+            {/* Добавлена кнопка Партнеры */}
+            <Link to={ROUTES.PARTNERS}>
+                <Button type="primary" ghost>🤝 Партнеры</Button>
             </Link>
         </div>
         {/* --------------------------- */}
@@ -31,7 +35,6 @@ export const ProfilePage = () => {
           className="shadow-sm border-gray-200"
           style={{ borderColor: '#E5E7EB' }}
         >
-          {/* ... остальной код профиля без изменений ... */}
           <div className="flex items-center mb-8 gap-5 p-4 bg-gray-50 rounded-lg border border-gray-100">
             <UserAvatar name={user.fullName} size={80} />
             <div>
