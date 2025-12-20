@@ -4,3 +4,5 @@ dist/
 .env
 .DS_Store
 project_context.txt
+test-results/
+playwright-report/
