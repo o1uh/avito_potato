@@ -26,6 +26,9 @@ export const ProfilePage = () => {
             <Link to={ROUTES.PARTNERS}>
                 <Button type="primary" ghost>🤝 Партнеры</Button>
             </Link>
+            <Link to={ROUTES.CATALOG}>
+                <Button type="primary">📦 Каталог товаров</Button>
+            </Link>
         </div>
         {/* --------------------------- */}
 
