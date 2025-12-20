@@ -1,15 +1,18 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { StorageService } from '../../../common/providers/storage.service';
+import { InjectQueue } from '@nestjs/bullmq'; // <--- Добавлено
+import { Queue } from 'bullmq';               // <--- Добавлено
 
 @Injectable()
 export class ProductMediaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    @InjectQueue('catalog-sync') private syncQueue: Queue, // <--- Внедрение очереди
   ) {}
 
-  async uploadImage(productId: number, supplierId: number, file: Express.Multer.File) {
+   async uploadImage(productId: number, supplierId: number, file: Express.Multer.File, variantId?: number) {
     // 1. Проверка прав
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Товар не найден');
@@ -22,17 +25,23 @@ export class ProductMediaService {
 
     // 3. Проверка: есть ли уже фото? Если нет, это будет главное фото.
     const count = await this.prisma.productImage.count({ where: { productId } });
-    const isMain = count === 0;
+    let isMain = false;
+    if (!variantId) {
+       const count = await this.prisma.productImage.count({ where: { productId, variantId: null } });
+       isMain = count === 0;
+    }
 
-    // 4. Сохранение в БД
+    // 4. Сохранение
     const image = await this.prisma.productImage.create({
       data: {
         productId,
-        imageUrl: url, // Сохраняем полный URL или key (в зависимости от архитектуры, тут URL удобнее для фронта)
+        imageUrl: url,
         isMain,
+        variantId: variantId || null, // Пишем связь
       },
     });
 
+    await this.syncQueue.add('index-product', { productId });
     return image;
   }
 
@@ -50,9 +59,8 @@ export class ProductMediaService {
     // Удаляем запись из БД
     await this.prisma.productImage.delete({ where: { id: imageId } });
     
-    // (Опционально) Удалить файл из S3, если нужно экономить место
-    // const key = image.imageUrl.split('/').pop(); 
-    // await this.storageService.delete(`products/${key}`);
+    // Обновляем индекс после удаления
+    await this.syncQueue.add('index-product', { productId: image.product.id }); // <--- Добавлено
 
     return { message: 'Изображение удалено' };
   }

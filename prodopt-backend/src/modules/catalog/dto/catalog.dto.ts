@@ -10,10 +10,10 @@ export class CreateVariantDto {
   @IsNotEmpty()
   variantName: string;
 
-  @ApiProperty({ example: 'MILK-001', description: 'Артикул' })
+  @ApiProperty({ example: 'MILK-001', description: 'Артикул', required: false })
   @IsString()
-  @IsNotEmpty()
-  sku: string;
+  @IsOptional() // Теперь это поле не обязательно
+  sku?: string;
 
   @ApiProperty({ example: 150.00, description: 'Цена' })
   @IsNumber()

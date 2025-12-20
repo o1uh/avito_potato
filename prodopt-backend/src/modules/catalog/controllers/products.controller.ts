@@ -9,10 +9,12 @@ import {
   ParseIntPipe, 
   Delete,
   UseInterceptors, // Добавлено
-  UploadedFile     // Добавлено
+  UploadedFile,     // Добавлено
+  Query,
+  Patch  
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express'; // Добавлено
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger'; // Добавлено ApiConsumes, ApiBody
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery  } from '@nestjs/swagger'; // Добавлено ApiConsumes, ApiBody
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { ProductsService } from '../services/products.service';
@@ -42,6 +44,12 @@ export class ProductsController {
   @ApiOperation({ summary: 'Получить мои товары' })
   async getMyProducts(@CurrentUser('companyId') companyId: number) {
     return this.productsService.getMyProducts(companyId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Получить полную информацию о товаре' })
+  async getOne(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.findById(id);
   }
 
   @Put(':id')
@@ -78,11 +86,25 @@ export class ProductsController {
     },
   })
   @ApiOperation({ summary: 'Загрузить фото товара' })
+  @ApiQuery({ name: 'variantId', required: false, type: Number }) 
   async uploadImage(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser('companyId') companyId: number,
     @UploadedFile() file: Express.Multer.File,
+    @Query('variantId') variantId?: string,
   ) {
-    return this.mediaService.uploadImage(id, companyId, file);
+    const parsedVariantId = variantId ? parseInt(variantId) : undefined;
+    return this.mediaService.uploadImage(id, companyId, file, parsedVariantId);
   }
+
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Опубликовать товар (перевод из Черновика в Каталог)' })
+  async publish(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('companyId') companyId: number,
+  ) {
+    // Вызываем сервис
+    return this.productsService.publish(id, companyId);
+  }
+
 }

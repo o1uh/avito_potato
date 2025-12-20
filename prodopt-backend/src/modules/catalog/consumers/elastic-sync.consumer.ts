@@ -35,12 +35,14 @@ export class ElasticSyncConsumer extends WorkerHost {
   }
 
   private async indexProduct(productId: number) {
-    // Получаем полные данные из БД (включая связи)
+    // Получаем полные данные из БД
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: {
         variants: true,
         category: true,
+        supplier: true, // Добавим поставщика, чтобы убрать #undefined
+        images: true,   // <--- ВАЖНО: Загружаем картинки
       },
     });
 
@@ -57,17 +59,23 @@ export class ElasticSyncConsumer extends WorkerHost {
       categoryId: product.productCategoryId,
       categoryName: product.category.name,
       supplierId: product.supplierCompanyId,
+      supplierName: product.supplier.name, // <--- Добавляем имя поставщика в индекс
       updatedAt: product.updatedAt,
+      productStatusId: product.productStatusId,
       variants: product.variants.map((v) => ({
         sku: v.sku,
         variantName: v.variantName,
-        price: Number(v.price), // Decimal -> Number
+        price: Number(v.price),
         minQty: v.minOrderQuantity,
+      })),
+      // <--- ВАЖНО: Добавляем массив картинок
+      images: product.images.map((img) => ({
+        id: img.id,
+        imageUrl: img.imageUrl,
+        isMain: img.isMain,
       })),
     };
 
-    // Index (Upsert)
-    // В новой версии клиента используем 'document' вместо 'body' для операций индексации
     await this.elasticsearchService.index({
       index: this.indexName,
       id: product.id.toString(),
