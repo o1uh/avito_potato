@@ -10,6 +10,7 @@ import { PartnersPage } from '@/pages/networking/PartnersPage';
 import { CatalogPage } from '@/pages/catalog/CatalogPage';
 import { ProductDetails } from '@/pages/catalog/ProductDetails';
 import { useSessionStore } from '@/entities/session/model/store';
+import { CreateProductPage } from '@/pages/catalog/CreateProductPage';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const isAuth = useSessionStore((state) => state.isAuth);
@@ -49,6 +50,10 @@ const router = createBrowserRouter([
   {
     path: ROUTES.CATALOG,
     element: <AuthGuard><CatalogPage /></AuthGuard>,
+  },
+  {
+    path: '/catalog/create',
+    element: <AuthGuard><CreateProductPage /></AuthGuard>,
   },
   {
     // Важно: путь должен совпадать с тем, что генерирует ROUTES.PRODUCT(id)
