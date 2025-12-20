@@ -13,6 +13,34 @@ export class CreateRfqDto {
   @IsOptional()
   @IsInt()
   supplierCompanyId?: number;
+
+  @ApiPropertyOptional({ description: 'ID варианта товара (SKU)' })
+  @IsOptional()
+  @IsInt()
+  productVariantId?: number;
+
+  @ApiPropertyOptional({ description: 'Желаемое количество' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity?: number;
+}
+
+// --- Вспомогательный DTO для позиций оффера ---
+export class OfferItemDto {
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  productVariantId: number;
+  
+  @ApiProperty({ example: 10 })
+  @IsInt()
+  @Min(1)
+  quantity: number;
+
+  @ApiProperty({ example: 150.00 })
+  @IsNumber()
+  @Min(0)
+  pricePerUnit: number;
 }
 
 // --- Offers ---
@@ -34,6 +62,12 @@ export class CreateOfferDto {
   @ApiProperty({ description: 'Срок действия КП' })
   @IsDateString()
   expiresOn: string;
+
+  @ApiProperty({ type: [OfferItemDto], description: 'Позиции предложения' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OfferItemDto)
+  items: OfferItemDto[];
 }
 
 export class NegotiateOfferDto {

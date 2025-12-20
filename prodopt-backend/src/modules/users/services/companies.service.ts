@@ -82,7 +82,8 @@ export class CompaniesService {
       include: { 
         organizationType: true, 
         verificationStatus: true,
-        addresses: { include: { address: true, addressType: true } } // Подгружаем адреса
+        addresses: { include: { address: true, addressType: true } }, // Подгружаем адреса
+        paymentDetails: true,
       },
     });
   }

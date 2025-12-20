@@ -135,16 +135,37 @@ describe('Trade Module (e2e) - Full Flow', () => {
   let rfqId: number;
   let offerId: number;
   let dealId: number;
-  let initialSupplierBalance = 0;
+  let variantId: number;
 
   // --- ТЕСТЫ ---
 
+  it('0. Supplier: Create Product (Pre-requisite)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/products')
+      .set('Authorization', `Bearer ${supplierUser.token}`)
+      .send({
+        name: 'Potato',
+        description: 'Fresh from Belarus',
+        productCategoryId: 1, // Убедитесь, что категория 1 существует (создается в seed.ts)
+        variants: [
+            { variantName: 'Bag 50kg', sku: `POT-${Date.now()}`, price: 50, minOrderQuantity: 1, measurementUnitId: 1 }
+        ]
+      })
+      .expect(201);
+    
+    // Сохраняем ID созданного варианта в переменную
+    variantId = res.body.variants[0].id;
+    expect(variantId).toBeDefined();
+  });
+  
   it('1. Buyer: Create RFQ', async () => {
     const res = await request(app.getHttpServer())
       .post('/trade/rfq')
       .set('Authorization', `Bearer ${buyerUser.token}`)
       .send({
         comment: 'Need 100kg of potatoes',
+        productVariantId: variantId, // Ссылка на товар
+        quantity: 100 // Хочу 100 штук
       })
       .expect(201);
     
@@ -161,11 +182,21 @@ describe('Trade Module (e2e) - Full Flow', () => {
         offerPrice: 5000,
         deliveryConditions: 'EXW Moscow',
         expiresOn: '2025-12-31',
+         items: [
+            {
+                productVariantId: variantId,
+                quantity: 100,
+                pricePerUnit: 50
+            }
+        ]
       })
       .expect(201);
-
+      
     offerId = res.body.id;
     expect(offerId).toBeDefined();
+    // Проверяем, что items создались и вернулись
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0].productVariantId).toBe(variantId);
   });
 
   it('3. Buyer: Create Deal from Offer', async () => {

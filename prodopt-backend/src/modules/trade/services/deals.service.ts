@@ -23,7 +23,10 @@ export class DealsService {
   async createFromOffer(dto: CreateDealFromOfferDto, buyerCompanyId: number) {
     const offer = await this.prisma.commercialOffer.findUnique({
       where: { id: dto.offerId },
-      include: { purchaseRequest: true },
+      include: { 
+          purchaseRequest: true,
+          items: true
+      },
     });
 
     if (!offer) throw new NotFoundException('Offer not found');
@@ -34,6 +37,10 @@ export class DealsService {
 
     if (offer.offerStatusId !== 1) { 
         throw new BadRequestException('Это коммерческое предложение уже обработано');
+    }
+
+    if (!offer.items || offer.items.length === 0) {
+        throw new BadRequestException('Оффер не содержит позиций товаров');
     }
 
     const deal = await this.prisma.$transaction(async (tx) => {
@@ -59,27 +66,11 @@ export class DealsService {
       }
 
       // 2. Подготовка товаров для сделки
-      let dealItemsData: any[] = [];
-
-      if (dto.items && dto.items.length > 0) {
-          dealItemsData = dto.items.map(item => ({
-              productVariantId: item.productVariantId,
-              quantity: item.quantity,
-              pricePerUnit: null 
-          }));
-      } else {
-          const anyVariant = await tx.productVariant.findFirst({
-              where: { product: { supplierCompanyId: offer.supplierCompanyId } }
-          });
-          
-          if (anyVariant) {
-              dealItemsData.push({
-                  productVariantId: anyVariant.id,
-                  quantity: 1,
-                  pricePerUnit: offer.offerPrice
-              });
-          }
-      }
+      const dealItemsData = offer.items.map(item => ({
+          productVariantId: item.productVariantId,
+          quantity: item.quantity,
+          pricePerUnit: item.pricePerUnit,
+      }));
 
       // 3. Создаем сделку
       const newDeal = await tx.deal.create({
@@ -90,9 +81,9 @@ export class DealsService {
           totalAmount: offer.offerPrice,
           dealStatusId: DealStatus.CREATED,
           deliveryTerms: offer.deliveryConditions,
-          items: dealItemsData.length > 0 ? {
+          items: {
               create: dealItemsData
-          } : undefined
+          }
         },
       });
 
