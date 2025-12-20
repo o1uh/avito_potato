@@ -33,6 +33,7 @@ export interface Product {
   // Relations
   category?: ProductCategory;
   supplier?: Company;
+  supplierName?: string;
   images: ProductImage[];
   variants: ProductVariant[];
   

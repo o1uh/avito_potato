@@ -55,7 +55,7 @@ export const ProductCard = ({ product }: Props) => {
               <div className="flex items-center gap-1 text-xs text-gray-500">
                 <ShopOutlined />
                 <span className="truncate max-w-[180px]">
-                  {product.supplier?.name || `Поставщик #${product.supplierCompanyId}`}
+                  {product.supplier?.name || product.supplierName || `Поставщик #${product.supplierCompanyId}`}
                 </span>
               </div>
               

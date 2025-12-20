@@ -36,6 +36,26 @@ export class ProductsService {
     return product;
   }
 
+  async findById(id: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        variants: {
+          include: { measurementUnit: true } // Важно подгрузить единицы измерения
+        },
+        images: true,
+        category: true,
+        supplier: true, // Чтобы показать имя поставщика
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product #${id} not found`);
+    }
+
+    return product;
+  }
+
   // --- ОБНОВЛЕННЫЙ МЕТОД UPDATE ---
   async update(id: number, supplierId: number, dto: UpdateProductDto) {
     const product = await this.prisma.product.findUnique({ where: { id } });

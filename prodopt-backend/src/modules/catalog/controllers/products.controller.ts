@@ -44,6 +44,12 @@ export class ProductsController {
     return this.productsService.getMyProducts(companyId);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Получить полную информацию о товаре' })
+  async getOne(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.findById(id);
+  }
+
   @Put(':id')
   @ApiOperation({ summary: 'Обновить товар' })
   async update(
