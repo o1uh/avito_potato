@@ -5,7 +5,10 @@ import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { CompanyPage } from '@/pages/profile/CompanyPage';
 import { StatsPage } from '@/pages/profile/StatsPage';
-import { PartnersPage } from '@/pages/networking/PartnersPage'; // <-- Импорт
+import { PartnersPage } from '@/pages/networking/PartnersPage';
+// --- ИМПОРТЫ НОВЫХ СТРАНИЦ ---
+import { CatalogPage } from '@/pages/catalog/CatalogPage';
+import { ProductDetails } from '@/pages/catalog/ProductDetails';
 import { useSessionStore } from '@/entities/session/model/store';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
@@ -41,6 +44,17 @@ const router = createBrowserRouter([
   {
     path: ROUTES.PARTNERS, 
     element: <AuthGuard><PartnersPage /></AuthGuard>,
+  },
+  // --- НОВЫЕ МАРШРУТЫ КАТАЛОГА ---
+  {
+    path: ROUTES.CATALOG,
+    element: <AuthGuard><CatalogPage /></AuthGuard>,
+  },
+  {
+    // Важно: путь должен совпадать с тем, что генерирует ROUTES.PRODUCT(id)
+    // В конфиге routes.ts: PRODUCT: (id) => `/catalog/${id}`
+    path: '/catalog/:id', 
+    element: <AuthGuard><ProductDetails /></AuthGuard>,
   },
 ]);
 
