@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-// Увеличиваем таймаут
+// Увеличиваем таймаут до 2 минут, так как сценарий включает 3-х пользователей и задержки
 test.setTimeout(120000); 
 
-// Хелпер ИНН
+// Хелпер генерации валидного ИНН
 function generateUniqueInn() {
   const region = '77'; 
   const body = Math.floor(Math.random() * 10000000).toString().padStart(7, '0');
@@ -37,16 +37,21 @@ async function register(page: any, email: string, name: string) {
   await page.fill('input[id="email"]', email);
   await page.fill('input[id="password"]', PASSWORD);
   await page.click('button[type="submit"]');
-  await expect(page).toHaveURL(/\/profile/);
+  
+  // Ожидаем редирект на профиль
+  await expect(page).toHaveURL(/\/profile/, { timeout: 10000 });
 }
 
 test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipment -> Completion', async ({ browser }) => {
   const buyerContext = await browser.newContext();
   const supplierContext = await browser.newContext();
+  const adminContext = await browser.newContext();
+
   const buyerPage = await buyerContext.newPage();
   const supplierPage = await supplierContext.newPage();
+  const adminPage = await adminContext.newPage();
 
-  // 1. Регистрация
+  // 1. Регистрация участников
   await Promise.all([
     register(buyerPage, BUYER_EMAIL, 'Buyer Inc'),
     register(supplierPage, SUPPLIER_EMAIL, 'Supplier Corp')
@@ -55,26 +60,30 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   // --- SUPPLIER: Создание товара ---
   await supplierPage.goto('/catalog/create');
   
-  // Шаг 1
+  // Шаг 1: Основное
   await supplierPage.fill('input[id="name"]', PRODUCT_NAME);
-  await supplierPage.click('input[id="productCategoryId"]'); 
+  // Клик по селекту категории
+  await supplierPage.locator('.ant-form-item-control-input-content .ant-select').first().click(); 
   await expect(supplierPage.locator('.ant-select-item-option').first()).toBeVisible();
   await supplierPage.locator('.ant-select-item-option').first().click();
   await supplierPage.fill('textarea[id="description"]', 'Best product description');
   await supplierPage.click('button:has-text("Далее")');
   
-  // Шаг 2
+  // Шаг 2: Варианты
   await expect(supplierPage.getByLabel('Название фасовки')).toBeVisible({ timeout: 10000 });
   await supplierPage.getByLabel('Название фасовки').fill('Box 10kg');
   await supplierPage.fill('input[id*="price"]', '1000'); 
+  
+  // Выбор единицы измерения
   await supplierPage.locator('.ant-card .ant-select').click();
   await supplierPage.locator('.ant-select-item-option').first().click();
+  
   await supplierPage.click('button:has-text("Создать товар")');
   
-  // Шаг 3: Фото
+  // Шаг 3: Фото и Публикация
   await expect(supplierPage.getByText('Товар создан!', { exact: true })).toBeVisible({ timeout: 10000 });
   
-  // Загрузка фото (из предыдущего фикса)
+  // Загрузка фото (фиктивная)
   const fileInput = supplierPage.locator('input[type="file"]').first();
   await fileInput.setInputFiles({
     name: 'test-image.jpg',
@@ -83,40 +92,68 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   });
   await expect(supplierPage.locator('.ant-upload-list-item-thumbnail')).toBeVisible({ timeout: 10000 });
 
-  await supplierPage.click('button:has-text("Завершить")');
+  // Нажимаем обновленную кнопку
+  await supplierPage.click('button:has-text("Отправить на модерацию")');
   await expect(supplierPage).toHaveURL(/\/catalog/);
+
+  // --- ADMIN: Одобрение товара ---
+  console.log('Admin: Starting moderation...');
+  await adminPage.goto('/auth/login');
+  await adminPage.fill('input[id="email"]', 'admin@prodopt.ru');
+  await adminPage.fill('input[id="password"]', 'admin123');
+  await adminPage.click('button[type="submit"]');
+  await expect(adminPage).toHaveURL(/\/profile/);
+  
+  await adminPage.goto('/admin');
+  
+  // Ищем товар в списке модерации
+  const productRow = adminPage.locator('tr', { hasText: PRODUCT_NAME });
+  await expect(productRow).toBeVisible({ timeout: 10000 });
+  
+  // Одобряем (ищем кнопку с иконкой галочки или primary в этой строке)
+  await productRow.locator('button.ant-btn-primary').click();
+  
+  // Ждем, пока товар исчезнет (значит обработано)
+  await expect(productRow).toBeHidden();
+  
+  console.log('Admin: Product approved. Waiting for Elastic Sync...');
+  // !!! КРИТИЧЕСКИ ВАЖНО: Ждем индексации в Elastic !!!
+  await adminPage.waitForTimeout(3000); 
+  await adminPage.close(); 
 
   // --- BUYER: Создание RFQ ---
   await buyerPage.goto('/trade/deals');
   await buyerPage.click('button:has-text("Создать запрос")');
-  // ... existing code ...
   await expect(buyerPage.locator('.ant-modal-title:has-text("Публичный запрос")')).toBeVisible();
   
-  // === FIX START: Выбор товара (Retry Logic) ===
+  // Поиск товара с ретраями
   let selected = false;
-  // Ant Design Form.Item name="productVariantId" генерирует input с id="productVariantId"
-  const searchInput = buyerPage.locator('input[id="productVariantId"]');
+  const searchInput = buyerPage.locator('input[id="productVariantId"]'); // Input внутри Select
 
-  for (let i = 0; i < 20; i++) {
+  console.log('Buyer: Searching for product...');
+  
+  for (let i = 0; i < 15; i++) {
     try {
-      // 1. Вводим текст поиска. force: true нужен, если input перекрыт кастомным UI селекта
-      await searchInput.fill(PRODUCT_NAME, { force: true });
+      // Очищаем и пишем заново (эмуляция набора текста для триггера поиска)
+      await searchInput.clear();
+      await searchInput.pressSequentially(PRODUCT_NAME, { delay: 100 });
       
-      // 2. Ждем появления опции (Elasticsearch может иметь задержку индексации)
+      // Ждем появления выпадающего списка
       const option = buyerPage.locator('.ant-select-item-option-content').filter({ hasText: PRODUCT_NAME }).first();
-      await option.waitFor({ state: 'visible', timeout: 3000 });
+      await option.waitFor({ state: 'visible', timeout: 2000 });
 
-      // 3. Выбираем опцию
+      // Кликаем
       await option.click();
 
-      // 4. Проверяем, что выбор зафиксирован (текст появился в селекторе)
+      // Проверяем, что в селекте отобразилось выбранное значение
       const selection = buyerPage.locator('.ant-select-selection-item').filter({ hasText: PRODUCT_NAME });
       await expect(selection).toBeVisible({ timeout: 1000 });
 
       selected = true;
+      console.log('Buyer: Product selected!');
       break;
     } catch (e) {
-      console.log(`Retry ${i}: Product "${PRODUCT_NAME}" not found yet. Waiting...`);
+      console.log(`Buyer: Retry ${i+1}. Product not ready yet.`);
       await buyerPage.waitForTimeout(2000); // Ждем перед следующей попыткой
     }
   }
@@ -127,36 +164,55 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
 
   await buyerPage.fill('input[id="quantity"]', '10');
   await buyerPage.fill('textarea[id="comment"]', 'Need ASAP delivery');
-  await buyerPage.click('div.ant-modal-footer button.ant-btn-primary');
   
+  // Клик по кнопке "Создать запрос" в футере модалки
+  await buyerPage.locator('.ant-modal-footer button.ant-btn-primary').click();
+  
+  // Ждем исчезновения модалки
   await expect(buyerPage.locator('.ant-modal')).toBeHidden();
+  // Проверяем, что запрос появился в таблице
   await expect(buyerPage.locator('table')).toContainText(PRODUCT_NAME);
 
   // --- SUPPLIER: Найти RFQ и создать Offer ---
+  console.log('Supplier: Creating Offer...');
   await supplierPage.goto('/trade/deals');
-  await supplierPage.reload();
+  await supplierPage.reload(); // Обновляем список, чтобы увидеть RFQ
+  
+  // Проверяем, что запрос виден
   await expect(supplierPage.locator('table')).toContainText(PRODUCT_NAME);
   
   await supplierPage.click('button:has-text("Предложить КП")');
   await expect(supplierPage.locator('.ant-drawer-title')).toContainText('Новое коммерческое предложение');
+  
   await supplierPage.fill('textarea[id="deliveryConditions"]', 'Pickup from Moscow');
   await supplierPage.click('button:has-text("Отправить КП")');
-  await supplierPage.reload();
+  
+  // Переключаемся на таб "Коммерческие предложения" для проверки
+  await supplierPage.reload(); // Иногда нужно обновить, чтобы счетчики сбросились/обновились
   await supplierPage.click('div[role="tab"]:has-text("Коммерческие предложения")');
+  
+  // Ищем строку с нашим товаром и статусом Sent
   await expect(supplierPage.locator('tr').filter({ hasText: PRODUCT_NAME }).filter({ hasText: 'Sent' })).toBeVisible();
 
   // --- BUYER: Принять Offer ---
+  console.log('Buyer: Accepting Offer...');
   await buyerPage.goto('/trade/deals');
   await buyerPage.click('div[role="tab"]:has-text("Коммерческие предложения")');
-  await expect(buyerPage.locator('tr').filter({ hasText: PRODUCT_NAME }).filter({ hasText: 'Sent' })).toBeVisible();
   
-  await buyerPage.click('button:has-text("Просмотр")');
-  await buyerPage.locator('.ant-drawer-open .ant-drawer-close').click(); 
+  // Ждем появления оффера
+  const offerRow = buyerPage.locator('tr').filter({ hasText: PRODUCT_NAME }).filter({ hasText: 'Sent' });
+  await expect(offerRow).toBeVisible();
+  
+  // Нажимаем просмотр -> закрываем (опционально, для теста UX)
+  await offerRow.locator('button:has-text("Просмотр")').click();
+  await buyerPage.locator('.ant-drawer-close').click(); 
   await expect(buyerPage.locator('.ant-drawer-open')).toHaveCount(0);
   
-  await buyerPage.locator(`tr:has-text("${PRODUCT_NAME}") button`).filter({ hasText: 'Принять' }).click();
+  // Нажимаем Принять (в таблице)
+  await offerRow.locator('button').filter({ hasText: 'Принять' }).click();
 
-  // Добавление адреса
+  // Добавление адреса (если его нет)
+  // Для надежности просто добавим адрес всегда, нажав отмену в модалке принятия
   await expect(buyerPage.locator('.ant-modal-title:has-text("Принятие условий сделки")')).toBeVisible();
   await buyerPage.click('button:has-text("Отмена")');
   
@@ -166,69 +222,77 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   await buyerPage.fill('input[id="street"]', 'Tverskaya');
   await buyerPage.fill('input[id="house"]', '1');
   await buyerPage.click('button:has-text("Сохранить")');
+  // Ждем пока модалка исчезнет
   await expect(buyerPage.locator('.ant-modal')).toBeHidden();
 
-  // Принятие (повторно)
+  // Принятие (повторно, уже с адресом)
   await buyerPage.goto('/trade/deals');
   await buyerPage.click('div[role="tab"]:has-text("Коммерческие предложения")');
   await buyerPage.locator(`tr:has-text("${PRODUCT_NAME}") button`).filter({ hasText: 'Принять' }).click();
   
+  // Выбираем адрес
   await buyerPage.click('#addressId'); 
-  await buyerPage.keyboard.press('Enter'); 
+  // Выбираем первый вариант в выпадающем списке (наш адрес)
+  await buyerPage.locator('.ant-select-item-option').first().click();
+  
   await buyerPage.click('button:has-text("Подтвердить и создать сделку")');
 
   // --- BUYER: Оплата ---
+  console.log('Buyer: Paying...');
   // Ждем редиректа на страницу сделки
   await expect(buyerPage).toHaveURL(/\/trade\/deals\/\d+/);
   
-  // === ИСПРАВЛЕНИЕ: Извлекаем ID сделки из URL покупателя ===
+  // Парсим ID сделки из URL для поставщика
   const dealUrl = buyerPage.url();
-  const dealId = dealUrl.split('/').pop(); // Получаем ID (например, "1")
-  // ==========================================================
+  const dealId = dealUrl.split('/').pop(); 
+  console.log(`Deal created with ID: ${dealId}`);
 
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('Согласована');
   
   await buyerPage.click('button:has-text("Оплатить")');
+  // В Dev режиме открывается модалка эмуляции
   await buyerPage.click('button:has-text("Внести средства")'); 
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('Оплачена');
 
   // --- SUPPLIER: Отгрузка ---
-  // Используем полученный dealId для перехода
+  console.log('Supplier: Shipping...');
+  // Переходим сразу в сделку по ID
   await supplierPage.goto(`/trade/deals/${dealId}`);
   
-  // Ждем загрузки статуса PAID, чтобы кнопка стала активна
+  // Ждем статуса "Оплачена", чтобы кнопка появилась
   await expect(supplierPage.locator('.ant-tag').first()).toContainText('Оплачена', { timeout: 15000 });
 
   await supplierPage.click('button:has-text("Отгрузить заказ")');
-// Используем timestamp для уникальности
-  await supplierPage.fill('input[id="trackingNumber"]', `TRACK-${Date.now()}`);  // Убираем проверку статуса из предиката, чтобы поймать возможные ошибки (400/500) и не зависнуть
-  const shipmentResponsePromise = supplierPage.waitForResponse(response => 
-    response.url().includes('/shipment')
+  
+  // Вводим УНИКАЛЬНЫЙ трек-номер
+  await supplierPage.fill('input[id="trackingNumber"]', `TRACK-${Date.now()}`);
+
+  // Ожидаем ответ от API, чтобы убедиться, что отгрузка прошла
+  const shipmentResponsePromise = supplierPage.waitForResponse(res => 
+    res.url().includes('/shipment') && res.status() === 201
   );
 
   await supplierPage.click('button:has-text("Подтвердить отгрузку")');
   
-  // Ждем завершения запроса
-  const shipmentResponse = await shipmentResponsePromise;
-  
-  // Логируем ошибку, если статус не 201, для упрощения отладки
-  if (shipmentResponse.status() !== 201) {
-    console.error('Shipment API Error:', await shipmentResponse.text());
-  }
-  
-  // Явно проверяем успешность
-  expect(shipmentResponse.status()).toBe(201);
-
-  // Ждем исчезновения модалки
+  await shipmentResponsePromise;
   await expect(supplierPage.locator('.ant-modal-content')).toBeHidden();
 
-  // Теперь проверяем статус. React Query должен был обновить данные.
+  // Проверяем статус "В пути"
   await expect(supplierPage.locator('.ant-tag').first()).toContainText('В пути', { timeout: 10000 });
+
   // --- BUYER: Приемка ---
+  console.log('Buyer: Completing...');
   await buyerPage.reload();
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('В пути');
+  
+  // Нажимаем подтверждение
+  // Сначала открываем Popconfirm (кнопка "Товар получен...")
   await buyerPage.click('button:has-text("Товар получен")');
+  // Подтверждаем в Popover ("Да, товар принят")
   await buyerPage.click('button:has-text("Да, товар принят")'); 
 
+  // Финальная проверка статуса
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('Завершена');
+  
+  console.log('Test Finished Successfully!');
 });
