@@ -9,6 +9,8 @@ import { PartnersPage } from '@/pages/networking/PartnersPage';
 import { CatalogPage } from '@/pages/catalog/CatalogPage';
 import { ProductDetails } from '@/pages/catalog/ProductDetails';
 import { CreateProductPage } from '@/pages/catalog/CreateProductPage';
+import { DealsPage } from '@/pages/trade/DealsPage'; // <--- Добавлено
+import { DealDetailsPage } from '@/pages/trade/DealDetailsPage'; // <--- Добавлено
 import { useSessionStore } from '@/entities/session/model/store';
 // Импортируем созданный Layout
 import { MainLayout } from '@/widgets/Layout';
@@ -68,6 +70,15 @@ const router = createBrowserRouter([
       {
         path: '/catalog/:id', 
         element: <ProductDetails />,
+      },
+      // --- Trade Routes (Добавлено) ---
+      {
+        path: ROUTES.DEALS,
+        element: <DealsPage />,
+      },
+      {
+        path: '/trade/deals/:id',
+        element: <DealDetailsPage />,
       },
     ]
   }

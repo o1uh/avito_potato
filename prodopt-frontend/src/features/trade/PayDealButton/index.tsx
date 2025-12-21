@@ -4,7 +4,8 @@ import { CreditCardOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { dealApi } from '@/entities/deal/api/deal.api';
 import { ENV } from '@/shared/config/env';
-import { Deal } from '@/entities/deal/model/types'; // Исправлен путь
+import { Deal } from '@/entities/deal/model/types';
+import { browser } from '@/shared/lib/browser'; // <--- ДОБАВЛЕН ИМПОРТ
 
 interface Props {
   deal: Deal;
@@ -26,7 +27,8 @@ export const PayDealButton = ({ deal }: Props) => {
     } else {
       dealApi.payProd(deal.id)
         .then((res) => {
-            if (res.paymentUrl) window.location.href = res.paymentUrl;
+            // Используем browser вместо window.location
+            if (res.paymentUrl) browser.location.assign(res.paymentUrl);
             else message.warning('Ссылка на оплату не получена');
         })
         .catch(() => message.error('Ошибка инициализации оплаты'));
