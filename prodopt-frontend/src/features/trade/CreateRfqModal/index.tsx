@@ -20,7 +20,7 @@ export const CreateRfqModal = ({ open, onCancel, partnerId, preselectedProductVa
   const [searchText, setSearchText] = useState('');
   const { data: productsData, isLoading: isProductsLoading } = useQuery({
     queryKey: ['products-search', searchText],
-    queryFn: () => productApi.search({ q: searchText, limit: 10 }),
+    queryFn: () => productApi.search({ q: searchText, limit: 50 }),
     enabled: open && !preselectedProductVariantId,
   });
 

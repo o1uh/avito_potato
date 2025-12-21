@@ -9,17 +9,17 @@ const { Title } = Typography;
 const { Sider, Content } = Layout;
 
 export const CatalogPage = () => {
-  // Если пользователь может создавать товары (менеджер/админ), покажем кнопку
-  const { isManager, isAdmin } = usePermission();
-  const canCreate = isManager || isAdmin;
+  // ИСПРАВЛЕНИЕ: Заменили isAdmin на isCompanyAdmin
+  const { isManager, isCompanyAdmin } = usePermission(); 
+  
+  // Кнопку видит либо менеджер, либо админ компании
+  const canCreate = isManager || isCompanyAdmin;
 
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <Title level={2} className="!mb-0">Каталог товаров</Title>
         {canCreate && (
-          // В будущем здесь будет ссылка на страницу создания товара
-          // Пока просто заглушка или Link, если роут уже есть
           <Link to="/catalog/create">
              <Button type="primary" icon={<PlusOutlined />}>Разместить товар</Button>
           </Link>
