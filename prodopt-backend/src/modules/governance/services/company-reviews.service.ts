@@ -38,11 +38,24 @@ export class CompanyReviewsService {
         recipientCompanyId: recipientId,
         serviceRating: rating,
         serviceComment: comment,
-        reviewStatusId: 2, // Сразу публикуем для упрощения (или 1 - на модерацию)
+        reviewStatusId: 2, // Сразу публикуем
       },
     });
 
-    // Рейтинг пересчитается триггером БД (trigger_recalc_rating), который мы добавили в миграцию
     return review;
+  }
+
+  // --- НОВЫЙ МЕТОД ---
+  async getReviewsByCompany(companyId: number) {
+    return this.prisma.companyReview.findMany({
+      where: { 
+        recipientCompanyId: companyId,
+        reviewStatusId: 2 // Только опубликованные
+      },
+      include: {
+        author: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
   }
 }

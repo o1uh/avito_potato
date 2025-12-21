@@ -92,4 +92,18 @@ export class DisputesService {
       });
     });
   }
+
+    async findAllOpen() {
+    return this.prisma.dispute.findMany({
+      where: { 
+        disputeStatusId: 1 // 1 = Open
+      },
+      include: {
+        claimant: { select: { id: true, name: true, inn: true } },
+        defendant: { select: { id: true, name: true, inn: true } },
+        deal: { select: { id: true, totalAmount: true } }
+      },
+      orderBy: { openedAt: 'desc' }
+    });
+  }
 }

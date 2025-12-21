@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Row, Col, Typography, Spin, Alert, Button, Steps, List, Empty } from 'antd';
+import { Row, Col, Typography, Spin, Alert, Button, Steps, List, Empty, Space, Table } from 'antd'; // Добавил Table
 import { dealApi } from '@/entities/deal/api/deal.api';
 import { DealStatus } from '@/shared/config/enums';
 import { usePermission } from '@/shared/lib/permissions';
@@ -11,14 +11,15 @@ import { PayDealButton } from '@/features/trade/PayDealButton';
 import { AddTrackingModal } from '@/features/trade/AddTrackingModal';
 import { ConfirmDeliveryBtn } from '@/features/trade/ConfirmDeliveryBtn';
 import { DownloadDocButton } from '@/features/documents/DownloadDocButton';
+import { OpenDisputeModal } from '@/features/governance/OpenDisputeModal';
+import { CreateReviewForm } from '@/features/governance/CreateReviewForm';
 import { useState } from 'react';
-import { CarOutlined, FileTextOutlined } from '@ant-design/icons';
+import { CarOutlined, FileTextOutlined, WarningOutlined } from '@ant-design/icons';
 import { formatCurrency } from '@/shared/lib/currency';
-import { $api } from '@/shared/api/base'; // Импортируем для прямого запроса документов
+import { $api } from '@/shared/api/base';
 
 const { Title, Text } = Typography;
 
-// Интерфейс документа (локально, так как нет в shared types)
 interface DealDocument {
   id: number;
   entityType: string;
@@ -36,8 +37,8 @@ export const DealDetailsPage = () => {
   const { companyId } = usePermission();
   
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
 
-  // Запрос сделки
   const { data: deal, isLoading, isError } = useQuery({
     queryKey: ['deal', id],
     queryFn: () => dealApi.getOne(dealId),
@@ -45,7 +46,6 @@ export const DealDetailsPage = () => {
     refetchInterval: 5000,
   });
 
-  // Запрос документов по сделке
   const { data: documents, isLoading: isDocsLoading } = useQuery({
     queryKey: ['deal-documents', id],
     queryFn: async () => {
@@ -55,7 +55,7 @@ export const DealDetailsPage = () => {
       return res.data;
     },
     enabled: !!id,
-    refetchInterval: 10000, // Периодическое обновление, чтобы поймать сгенерированные доки
+    refetchInterval: 10000,
   });
 
   if (isLoading) return <div className="flex justify-center p-20"><Spin size="large" /></div>;
@@ -63,14 +63,47 @@ export const DealDetailsPage = () => {
 
   const isBuyer = deal.buyerCompanyId === companyId;
   const isSupplier = deal.supplierCompanyId === companyId;
+  const isParticipant = isBuyer || isSupplier;
+
+  const canOpenDispute = isParticipant && (deal.dealStatusId === DealStatus.PAID || deal.dealStatusId === DealStatus.SHIPPED);
+  const canReview = isParticipant && deal.dealStatusId === DealStatus.COMPLETED;
 
   const currentStep = () => {
+      if (deal.dealStatusId === DealStatus.DISPUTE) return 3;
       if (deal.dealStatusId >= DealStatus.COMPLETED) return 4;
       if (deal.dealStatusId === DealStatus.SHIPPED) return 3;
       if (deal.dealStatusId === DealStatus.PAID) return 2;
       if (deal.dealStatusId === DealStatus.AGREED) return 1;
       return 0;
   };
+
+  // Конфигурация колонок для таблицы товаров
+  const itemsColumns = [
+    {
+      title: 'Товар',
+      dataIndex: 'productNameAtDealMoment',
+      key: 'name',
+      render: (text: string) => <span className="font-medium">{text || 'Товар'}</span>
+    },
+    {
+      title: 'Кол-во',
+      key: 'quantity',
+      render: (_: any, record: any) => (
+        <span>{record.quantity} {record.measurementUnitAtDealMoment}</span>
+      )
+    },
+    {
+      title: 'Цена',
+      dataIndex: 'pricePerUnit',
+      key: 'price',
+      render: (val: any) => formatCurrency(val)
+    },
+    {
+      title: 'Сумма',
+      key: 'total',
+      render: (_: any, record: any) => formatCurrency(record.pricePerUnit * record.quantity)
+    }
+  ];
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -85,7 +118,7 @@ export const DealDetailsPage = () => {
           </Text>
         </div>
         
-        <div className="flex gap-3">
+        <Space>
             {isBuyer && deal.dealStatusId === DealStatus.AGREED && (
                 <PayDealButton deal={deal} />
             )}
@@ -106,12 +139,29 @@ export const DealDetailsPage = () => {
             {isBuyer && deal.dealStatusId === DealStatus.SHIPPED && (
                 <ConfirmDeliveryBtn dealId={dealId} />
             )}
-        </div>
+
+            {canOpenDispute && (
+                <Button danger icon={<WarningOutlined />} onClick={() => setIsDisputeModalOpen(true)}>
+                    Открыть спор
+                </Button>
+            )}
+
+            {canReview && (
+                <CreateReviewForm dealId={dealId} />
+            )}
+        </Space>
       </div>
+
+      <OpenDisputeModal 
+        dealId={dealId} 
+        isOpen={isDisputeModalOpen} 
+        onCancel={() => setIsDisputeModalOpen(false)} 
+      />
 
       <div className="mb-8 px-4">
           <Steps 
             current={currentStep()} 
+            status={deal.dealStatusId === DealStatus.DISPUTE ? 'error' : 'process'}
             items={[
                 { title: 'Согласование' },
                 { title: 'Оплата' },
@@ -122,32 +172,29 @@ export const DealDetailsPage = () => {
           />
       </div>
 
+      {deal.dealStatusId === DealStatus.DISPUTE && (
+          <Alert 
+            type="error" 
+            message="Арбитраж"
+            description="По данной сделке открыт спор. Средства заморожены до решения администратора."
+            showIcon 
+            className="mb-6"
+          />
+      )}
+
       <Row gutter={[24, 24]}>
         <Col xs={24} md={16}>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-                <Title level={4}>Состав заказа</Title>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500">
-                            <tr>
-                                <th className="p-2">Товар</th>
-                                <th className="p-2">Кол-во</th>
-                                <th className="p-2">Цена</th>
-                                <th className="p-2">Сумма</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {deal.items?.map((item: any) => (
-                                <tr key={item.id} className="border-b">
-                                    <td className="p-2">{item.productNameAtDealMoment}</td>
-                                    <td className="p-2">{item.quantity} {item.measurementUnitAtDealMoment}</td>
-                                    <td className="p-2">{formatCurrency(item.pricePerUnit)}</td>
-                                    <td className="p-2">{formatCurrency(item.pricePerUnit * item.quantity)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <Title level={4} className="mb-4">Состав заказа</Title>
+                {/* Используем Ant Design Table вместо HTML table */}
+                <Table 
+                  dataSource={deal.items} 
+                  columns={itemsColumns} 
+                  rowKey="id"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: 'Нет данных о товарах' }}
+                />
             </div>
 
             <DealHistory deal={deal} />
@@ -156,7 +203,6 @@ export const DealDetailsPage = () => {
         <Col xs={24} md={8}>
             <DealInfoCard deal={deal} isSupplier={isSupplier} />
             
-            {/* Секция документов */}
             <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex items-center gap-2 mb-3">
                     <FileTextOutlined className="text-gray-400" />

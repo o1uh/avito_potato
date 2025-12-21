@@ -12,6 +12,8 @@ const COLUMNS = [
   { title: 'Оплата', status: DealStatus.AGREED, color: 'cyan' },
   { title: 'В работе', status: DealStatus.PAID, color: 'orange' },
   { title: 'Доставка', status: DealStatus.SHIPPED, color: 'purple' },
+  // Добавили колонку для споров
+  { title: 'Арбитраж', status: DealStatus.DISPUTE, color: 'red' }, 
   { title: 'Завершено', status: DealStatus.COMPLETED, color: 'green' },
 ];
 
@@ -43,6 +45,8 @@ export const DealKanban = () => {
                     size="small" 
                     hoverable 
                     className="cursor-pointer shadow-sm border-0"
+                    // Подсветим красной рамкой, если спор
+                    style={deal.dealStatusId === DealStatus.DISPUTE ? { border: '1px solid #ffccc7' } : {}}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="font-medium text-xs text-gray-500">#{deal.id}</div>

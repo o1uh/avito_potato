@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { DealsService } from '../services/deals.service';
@@ -30,12 +30,15 @@ export class DealsController {
 
   @Post(':id/accept')
   @ApiOperation({ summary: 'Принять условия сделки (Переход в AGREED, создание счета)' })
+  @ApiBody({ schema: { type: 'object', properties: { deliveryAddressId: { type: 'number' } } } })
   async accept(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser('companyId') companyId: number,
     @CurrentUser('sub') userId: number,
+    @Body() body: { deliveryAddressId: number }, // <--- Явно получаем body
   ) {
-    return this.dealsService.changeStatus(id, userId, companyId, DealStatus.AGREED);
+    // Передаем адрес в сервис
+    return this.dealsService.changeStatus(id, userId, companyId, DealStatus.AGREED, body.deliveryAddressId);
   }
 
   @Get(':id')

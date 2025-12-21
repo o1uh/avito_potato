@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, ParseIntPipe, UseGuards, Get } from '@nestjs/common'; // Добавил Get
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -25,5 +25,12 @@ export class ReviewsController {
     @Body() dto: CreateReviewDto,
   ) {
     return this.reviewsService.createReview(companyId, dealId, dto.rating, dto.comment);
+  }
+
+  // --- НОВЫЙ ЭНДПОИНТ ---
+  @Get('company/:id')
+  @ApiOperation({ summary: 'Получить отзывы о компании' })
+  async getCompanyReviews(@Param('id', ParseIntPipe) id: number) {
+    return this.reviewsService.getReviewsByCompany(id);
   }
 }

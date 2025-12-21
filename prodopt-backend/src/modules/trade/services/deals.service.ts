@@ -87,16 +87,12 @@ export class DealsService {
         },
       });
 
-      // 4. Отправляем уведомления (Используем newDeal, так как deal еще не определен)
+      // 4. Отправляем уведомления
       const supplierUsers = await this.prisma.user.findMany({
         where: { companyId: newDeal.supplierCompanyId, roleInCompanyId: { in: [1, 2] } }
       });
 
       for (const user of supplierUsers) {
-        // Мы не используем await здесь намеренно, или ловим ошибки, 
-        // чтобы сбой уведомления не откатывал транзакцию сделки (в идеале)
-        // Но так как это внутри транзакции, лучше использовать внешний сервис очередей.
-        // Для MVP оставим await, но обернем в try/catch внутри NotificationsService (он там есть)
         await this.notificationsService.send({
           userId: user.id,
           subject: 'Сделка согласована',
@@ -110,13 +106,12 @@ export class DealsService {
       return newDeal;
     });
 
-    // Генерируем договор асинхронно
     this.generateContract(deal.id).catch(e => this.logger.error(e));
 
     return deal;
   }
 
-  async changeStatus(dealId: number, userId: number, companyId: number, newStatus: DealStatus) {
+  async changeStatus(dealId: number, userId: number, companyId: number, newStatus: DealStatus, addressId?: number) {
     const deal = await this.prisma.deal.findUnique({ where: { id: dealId } });
     if (!deal) throw new NotFoundException('Сделка не найдена');
 
@@ -130,7 +125,8 @@ export class DealsService {
 
     switch (newStatus) {
       case DealStatus.AGREED:
-        return this.acceptDeal(deal);
+        // Передаем addressId в метод acceptDeal
+        return this.acceptDeal(deal, addressId);
       case DealStatus.PAID:
          break;
     }
@@ -142,7 +138,7 @@ export class DealsService {
     });
   }
 
-  private async acceptDeal(deal: Prisma.DealGetPayload<{}>) {
+  private async acceptDeal(deal: Prisma.DealGetPayload<{}>, addressId?: number) {
     await this.escrowService.create({
       dealId: deal.id,
       totalAmount: Number(deal.totalAmount),
@@ -150,7 +146,11 @@ export class DealsService {
 
     const updatedDeal = await this.prisma.deal.update({
       where: { id: deal.id },
-      data: { dealStatusId: DealStatus.AGREED },
+      data: { 
+          dealStatusId: DealStatus.AGREED,
+          // Обновляем адрес доставки, если он передан
+          deliveryAddressId: addressId || undefined
+      },
       include: { status: true }
     });
 
@@ -213,7 +213,12 @@ export class DealsService {
             include: { status: true }
         }, 
         transactions: true,
-        status: true
+        status: true,
+        
+        // --- ДОБАВЛЕНО: Загрузка товаров и адреса ---
+        items: true,
+        deliveryAddress: true,
+        // --------------------------------------------
       },
     });
 
@@ -225,6 +230,7 @@ export class DealsService {
   }
 
   async confirmDelivery(dealId: number, buyerCompanyId: number) {
+    // ... (без изменений, метод confirmDelivery уже содержал items: true внутри)
     const deal = await this.prisma.deal.findUnique({ 
         where: { id: dealId },
         include: { 

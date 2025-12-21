@@ -1,7 +1,7 @@
 import { useSessionStore } from '@/entities/session/model/store';
 import { UserRole } from '@/shared/config/enums';
 
-// Вспомогательные чистые функции (используются в тестах и внутри хука)
+// Вспомогательные чистые функции
 export const isAdmin = (roleId?: number): boolean => {
   return roleId === UserRole.ADMIN;
 };
@@ -10,15 +10,24 @@ export const isManager = (roleId?: number): boolean => {
   return roleId === UserRole.MANAGER;
 };
 
-// Основной хук для использования в компонентах
+// Основной хук
 export const usePermission = () => {
   const user = useSessionStore((state) => state.user);
 
   return {
-    isAdmin: isAdmin(user?.roleInCompanyId),
+    // Является ли Администратором СВОЕЙ компании
+    isCompanyAdmin: isAdmin(user?.roleInCompanyId),
+    
+    // Является ли Менеджером
     isManager: isManager(user?.roleInCompanyId),
-    // Пример составного права: управлять командой может только админ
+    
+    // Может ли управлять командой (только админ компании)
     canManageTeam: isAdmin(user?.roleInCompanyId),
+    
+    // Является ли СУПЕР-АДМИНОМ всей платформы
+    // В seed.ts мы создали его с ID 1
+    isPlatformAdmin: user?.id === 1,
+    
     companyId: user?.companyId,
   };
 };
