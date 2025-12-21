@@ -1,7 +1,7 @@
 import { ProductVariant, Product } from '@/entities/product/model/types';
-import { Company } from '@/entities/user/model/types';
+import { Company, Address } from '@/entities/user/model/types';
 
-// Enums (синхронизированы с бэкендом)
+// Enums
 export enum RequestStatus {
   NEW = 1,
   CLOSED = 2,
@@ -13,7 +13,17 @@ export enum OfferStatus {
   REJECTED = 3,
 }
 
-// RFQ (Запрос на закупку)
+export enum DealStatus {
+  CREATED = 1,
+  AGREED = 2,
+  PAID = 3,
+  SHIPPED = 4,
+  COMPLETED = 5,
+  CANCELED = 6,
+  DISPUTE = 7,
+}
+
+// RFQ & Offer
 export interface PurchaseRequest {
   id: number;
   comment: string;
@@ -23,26 +33,20 @@ export interface PurchaseRequest {
   productVariantId?: number;
   requestedQuantity?: number;
   createdAt: string;
-
-  // Relations
   buyer?: Company;
   supplier?: Company;
   targetVariant?: ProductVariant & { product?: Product; measurementUnit?: { name: string } };
   offers?: CommercialOffer[];
 }
 
-// Offer Item (Позиция в оффере)
 export interface OfferItem {
   id: number;
   productVariantId: number;
   quantity: number;
-  pricePerUnit: number; // или string, если Decimal
-  
-  // Relations
+  pricePerUnit: number;
   productVariant?: ProductVariant & { product?: Product };
 }
 
-// Offer (Коммерческое предложение)
 export interface CommercialOffer {
   id: number;
   purchaseRequestId: number;
@@ -52,11 +56,71 @@ export interface CommercialOffer {
   expiresOn: string;
   offerStatusId: number;
   createdAt: string;
-
-  // Relations
   purchaseRequest?: PurchaseRequest;
   supplier?: Company;
   items: OfferItem[];
+}
+
+// Deal
+export interface DealItem {
+  id: number;
+  dealId: number;
+  productVariantId: number;
+  quantity: number;
+  pricePerUnit: number;
+  productNameAtDealMoment: string;
+  variantNameAtDealMoment?: string;
+  measurementUnitAtDealMoment?: string;
+}
+
+export interface EscrowAccount {
+  dealId: number;
+  totalAmount: number;
+  amountDeposited: number;
+  platformFeeAmount: number;
+  escrowStatusId: number;
+  updatedAt: string;
+}
+
+export interface Transaction {
+  id: number;
+  amount: number;
+  dealId: number;
+  transactionTypeId: number;
+  transactionStatusId: number;
+  createdAt: string;
+}
+
+export interface Shipment {
+  id: number;
+  trackingNumber: string;
+  logisticsService: string;
+  sentAt: string;
+  expectedDeliveryDate?: string;
+  deliveryStatusId: number;
+}
+
+export interface Deal {
+  id: number;
+  buyerCompanyId: number;
+  supplierCompanyId: number;
+  commercialOfferId?: number;
+  totalAmount: number;
+  dealStatusId: number;
+  deliveryTerms?: string;
+  createdAt: string;
+  updatedAt: string;
+  deliveryAddressId?: number;
+
+  // Relations
+  buyer?: Company;
+  supplier?: Company;
+  commercialOffer?: CommercialOffer;
+  deliveryAddress?: Address;
+  escrowAccount?: EscrowAccount;
+  transactions?: Transaction[];
+  items?: DealItem[];
+  shipments?: Shipment[];
 }
 
 // DTOs
@@ -82,4 +146,9 @@ export interface CreateOfferDto {
 export interface NegotiateOfferDto {
   offerPrice?: number;
   deliveryConditions?: string;
+}
+
+export interface CreateDealFromOfferDto {
+  offerId: number;
+  closeRequest?: boolean;
 }

@@ -7,8 +7,9 @@ import { offerApi } from '@/entities/deal/api/offer.api';
 import { usePermission } from '@/shared/lib/permissions';
 import { CreateRfqModal } from '@/features/trade/CreateRfqModal';
 import { CreateOfferForm } from '@/features/trade/CreateOfferForm';
+import { AcceptDealModal } from '@/features/trade/AcceptDealModal'; // Импорт Этапа 9
+import { DealKanban } from '@/widgets/DealKanban'; // Импорт Этапа 9
 import { PurchaseRequest, CommercialOffer, RequestStatus } from '@/entities/deal/model/types';
-import { AcceptDealModal } from '@/features/trade/AcceptDealModal'; // Будет реализовано на этапе 9, пока заглушка или импорт если есть
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
@@ -16,7 +17,7 @@ const { Title } = Typography;
 export const DealsPage = () => {
   const { companyId } = usePermission();
   
-  // States for Modals
+  // --- Состояния модалок ---
   const [isRfqModalOpen, setIsRfqModalOpen] = useState(false);
   
   const [offerDrawerState, setOfferDrawerState] = useState<{
@@ -26,7 +27,13 @@ export const DealsPage = () => {
       readOnly?: boolean;
   }>({ open: false });
 
-  // --- Queries ---
+  // Состояние для модалки принятия сделки (Этап 9)
+  const [acceptModalState, setAcceptModalState] = useState<{
+      open: boolean;
+      offer: CommercialOffer | null;
+  }>({ open: false, offer: null });
+
+  // --- Запросы данных ---
   const { data: rfqList, isLoading: isRfqLoading } = useQuery({
     queryKey: ['rfq-list'],
     queryFn: rfqApi.getAll,
@@ -42,7 +49,8 @@ export const DealsPage = () => {
     queryFn: () => offerApi.getAll('received'),
   });
 
-  // --- Handlers ---
+  // --- Обработчики ---
+  
   const openCreateOffer = (rfq: PurchaseRequest) => {
       setOfferDrawerState({ open: true, rfq, readOnly: false });
   };
@@ -55,7 +63,11 @@ export const DealsPage = () => {
       setOfferDrawerState({ open: true, offer: offer, readOnly: true });
   };
 
-  // --- Columns ---
+  const openAcceptModal = (offer: CommercialOffer) => {
+      setAcceptModalState({ open: true, offer });
+  };
+
+  // --- Колонки таблиц ---
 
   const rfqColumns = [
     {
@@ -95,10 +107,12 @@ export const DealsPage = () => {
         title: 'Действия',
         key: 'actions',
         render: (_: any, r: PurchaseRequest) => {
-            // Если я покупатель - ничего (или редактировать)
+            // Если я покупатель - ничего (или статус)
             if (r.buyerCompanyId === companyId) return <Tag>Мой запрос</Tag>;
             
             // Если я поставщик - могу отправить Оффер
+            // Проверка: отправлял ли я уже оффер? (на фронте фильтровать сложно без вложенных данных, 
+            // поэтому пока просто кнопка, бэк не даст создать дубль если есть валидация)
             return (
                 <Button type="primary" size="small" onClick={() => openCreateOffer(r)}>
                     Предложить КП
@@ -137,7 +151,7 @@ export const DealsPage = () => {
           dataIndex: 'offerStatusId',
           key: 'status',
           render: (id: number) => {
-              const map: Record<number, any> = { 1: 'Sent', 2: 'Accepted', 3: 'Rejected' };
+              const map: Record<number, string> = { 1: 'Sent', 2: 'Accepted', 3: 'Rejected' };
               const colors: Record<number, string> = { 1: 'blue', 2: 'green', 3: 'red' };
               return <Tag color={colors[id]}>{map[id]}</Tag>;
           }
@@ -149,19 +163,27 @@ export const DealsPage = () => {
               const isMine = o.supplierCompanyId === companyId;
               
               if (isMine) {
+                  // Я Поставщик
                   return o.offerStatusId === 1 ? (
                       <Button icon={<EditOutlined />} onClick={() => openEditOffer(o)}>Изменить</Button>
                   ) : <Button icon={<EyeOutlined />} onClick={() => openViewOffer(o)} />;
               } else {
-                  // Я покупатель
+                  // Я Покупатель
                   return (
                       <Space>
                           <Button icon={<EyeOutlined />} onClick={() => openViewOffer(o)}>Просмотр</Button>
-                          {/* Кнопка принятия будет внутри формы просмотра или тут, 
-                              но логика AcceptDealModal (Stage 9) требует отдельной модалки.
-                              Здесь пока оставим просмотр. */}
+                          
+                          {/* Кнопка "Принять" доступна только для активных офферов */}
                           {o.offerStatusId === 1 && (
-                              <AcceptDealModalTrigger offer={o} />
+                              <Tooltip title="Создать сделку">
+                                  <Button 
+                                    type="primary" 
+                                    icon={<CheckCircleOutlined />} 
+                                    onClick={() => openAcceptModal(o)}
+                                  >
+                                      Принять
+                                  </Button>
+                              </Tooltip>
                           )}
                       </Space>
                   );
@@ -170,21 +192,22 @@ export const DealsPage = () => {
       }
   ];
 
-  // Табы
+  // --- Табы ---
   const items = [
     {
       key: 'rfq',
       label: 'Запросы на закупку',
       children: (
           <div className="space-y-4">
-              <div className="flex justify-between">
-                  <span>Активные запросы на рынке и мои собственные.</span>
+              <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Активные запросы на рынке и мои собственные.</span>
                   <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsRfqModalOpen(true)}>
                       Создать запрос
                   </Button>
               </div>
               <Table 
                   columns={rfqColumns} 
+                  // Показываем только новые запросы
                   dataSource={rfqList?.filter(r => r.requestStatusId === RequestStatus.NEW)} 
                   rowKey="id" 
                   loading={isRfqLoading} 
@@ -223,7 +246,8 @@ export const DealsPage = () => {
     {
         key: 'deals',
         label: 'Сделки',
-        children: <div className="p-10 text-center text-gray-400">Канбан доска будет доступна на следующем этапе</div>
+        // Виджет Канбан из Этапа 9
+        children: <DealKanban />
     }
   ];
 
@@ -235,11 +259,13 @@ export const DealsPage = () => {
 
       <Tabs defaultActiveKey="rfq" items={items} />
 
+      {/* Модалка создания RFQ */}
       <CreateRfqModal 
         open={isRfqModalOpen} 
         onCancel={() => setIsRfqModalOpen(false)} 
       />
 
+      {/* Дровер создания/просмотра Оффера */}
       <CreateOfferForm 
         open={offerDrawerState.open}
         onClose={() => setOfferDrawerState({ open: false })}
@@ -247,19 +273,15 @@ export const DealsPage = () => {
         existingOffer={offerDrawerState.offer}
         readOnly={offerDrawerState.readOnly}
       />
+
+      {/* Модалка принятия сделки */}
+      {acceptModalState.offer && (
+          <AcceptDealModal 
+            open={acceptModalState.open}
+            offer={acceptModalState.offer}
+            onCancel={() => setAcceptModalState({ open: false, offer: null })}
+          />
+      )}
     </div>
   );
-};
-
-// Заглушка для кнопки принятия (Stage 9 dependency)
-// В реальном коде это будет импорт из features/trade/AcceptDealModal
-const AcceptDealModalTrigger = ({ offer }: { offer: CommercialOffer }) => {
-    // Временно, чтобы кнопка была, но не ломала сборку отсутствием компонента
-    return (
-        <Tooltip title="Функционал создания сделки (Этап 9)">
-            <Button type="primary" icon={<CheckCircleOutlined />} disabled>
-                Принять
-            </Button>
-        </Tooltip>
-    );
 };

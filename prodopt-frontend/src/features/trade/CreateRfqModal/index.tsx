@@ -1,39 +1,35 @@
-import { Modal, Form, Input, InputNumber, Select, message } from 'antd';
+import { Modal, Form, InputNumber, Select, message, Input } from 'antd';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { rfqApi } from '@/entities/deal/api/rfq.api';
 import { productApi } from '@/entities/product/api/product.api';
 import { companyApi } from '@/entities/user/api/company.api';
-import { useSessionStore } from '@/entities/session/model/store';
 import { useState } from 'react';
 
 interface Props {
   open: boolean;
   onCancel: () => void;
-  partnerId?: number | null; // Если null — публичный запрос
-  preselectedProductVariantId?: number; // Если открыли из карточки товара
+  partnerId?: number | null;
+  preselectedProductVariantId?: number;
 }
 
 export const CreateRfqModal = ({ open, onCancel, partnerId, preselectedProductVariantId }: Props) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
-  const user = useSessionStore((s) => s.user);
+  // const user = useSessionStore((s) => s.user); // Убрано
 
-  // 1. Поиск товаров (для селекта, если не предвыбран)
   const [searchText, setSearchText] = useState('');
   const { data: productsData, isLoading: isProductsLoading } = useQuery({
     queryKey: ['products-search', searchText],
     queryFn: () => productApi.search({ q: searchText, limit: 10 }),
-    enabled: open && !preselectedProductVariantId, // Ищем только если модалка открыта и нет предвыбора
+    enabled: open && !preselectedProductVariantId,
   });
 
-  // 2. Адреса компании (для добавления в комментарий, т.к. в DTO нет поля addressId)
   const { data: company } = useQuery({
     queryKey: ['myCompany'],
     queryFn: companyApi.getMyCompany,
     enabled: open,
   });
 
-  // Мутация создания
   const createMutation = useMutation({
     mutationFn: rfqApi.create,
     onSuccess: () => {
@@ -48,7 +44,6 @@ export const CreateRfqModal = ({ open, onCancel, partnerId, preselectedProductVa
   });
 
   const handleFinish = (values: any) => {
-    // Формируем комментарий с адресом
     let finalComment = values.comment;
     if (values.addressId) {
         const address = company?.addresses?.find(a => a.address.id === values.addressId)?.address;
@@ -66,7 +61,6 @@ export const CreateRfqModal = ({ open, onCancel, partnerId, preselectedProductVa
     });
   };
 
-  // Подготовка опций для селекта товаров
   const productOptions = productsData?.items.flatMap(p => 
     p.variants.map(v => ({
       label: `${p.name} - ${v.variantName} (${v.price} ₽)`,
@@ -89,13 +83,8 @@ export const CreateRfqModal = ({ open, onCancel, partnerId, preselectedProductVa
       okText="Создать запрос"
     >
       <Form form={form} layout="vertical" onFinish={handleFinish}>
-        {/* Если товар не предвыбран, даем поиск */}
         {!preselectedProductVariantId && (
-          <Form.Item 
-            name="productVariantId" 
-            label="Товар" 
-            rules={[{ required: true, message: 'Выберите товар' }]}
-          >
+          <Form.Item name="productVariantId" label="Товар" rules={[{ required: true, message: 'Выберите товар' }]}>
             <Select
               showSearch
               placeholder="Введите название товара"
@@ -108,27 +97,15 @@ export const CreateRfqModal = ({ open, onCancel, partnerId, preselectedProductVa
           </Form.Item>
         )}
 
-        <Form.Item 
-            name="quantity" 
-            label="Требуемое количество" 
-            rules={[{ required: true, message: 'Укажите количество' }]}
-        >
+        <Form.Item name="quantity" label="Требуемое количество" rules={[{ required: true, message: 'Укажите количество' }]}>
             <InputNumber min={1} style={{ width: '100%' }} placeholder="шт/кг" />
         </Form.Item>
 
         <Form.Item name="addressId" label="Адрес доставки">
-            <Select 
-                placeholder="Выберите адрес склада/офиса" 
-                options={addressOptions}
-                allowClear
-            />
+            <Select placeholder="Выберите адрес склада/офиса" options={addressOptions} allowClear />
         </Form.Item>
 
-        <Form.Item 
-          name="comment" 
-          label="Комментарий / Требования" 
-          rules={[{ required: true, message: 'Опишите ваши требования' }]}
-        >
+        <Form.Item name="comment" label="Комментарий / Требования" rules={[{ required: true, message: 'Опишите ваши требования' }]}>
           <Input.TextArea rows={4} placeholder="Сроки, упаковка, особенности..." />
         </Form.Item>
       </Form>
