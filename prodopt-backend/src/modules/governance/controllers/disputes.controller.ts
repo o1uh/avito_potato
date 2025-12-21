@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, ParseIntPipe, UseGuards, Put } from '@nestjs/common';
+import { Controller, Post, Body, Param, ParseIntPipe, UseGuards, Put, Get, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -22,6 +22,16 @@ class ResolveDisputeDto {
 @Controller('disputes')
 export class DisputesController {
   constructor(private readonly disputesService: DisputesService) {}
+  
+  @Get()
+  @ApiOperation({ summary: 'Получить список активных споров (Только Админ)' })
+  async getAll(@CurrentUser('role') role: number) {
+    // Простейшая проверка прав (1 = Админ)
+    if (role !== 1) {
+      throw new ForbiddenException('Доступ запрещен');
+    }
+    return this.disputesService.findAllOpen();
+  }
 
   @Post(':dealId')
   @ApiOperation({ summary: 'Открыть спор по сделке' })
