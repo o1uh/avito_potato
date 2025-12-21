@@ -9,6 +9,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { DealStatus } from '../../trade/utils/deal-state-machine';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../../communication/services/notifications.service';
 
 // DTO с валидацией
 class WebhookDto {
@@ -40,6 +41,7 @@ export class FinanceController {
     private readonly transactionsService: TransactionsService,
     private readonly bankAdapter: TochkaBankAdapter,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService
   ) {}
 
   @Post('webhook/tochka')
@@ -78,6 +80,23 @@ export class FinanceController {
            data: { dealStatusId: DealStatus.PAID }
          });
          this.logger.log(`Deal ${dto.dealId} fully funded. Status -> PAID.`);
+      }
+
+      const deal = await this.prisma.deal.findUnique({ where: { id: dto.dealId } });
+
+      const supplierUsers = await this.prisma.user.findMany({
+        where: { companyId: deal.supplierCompanyId, roleInCompanyId: { in: [1, 2] } }
+      });
+
+      for (const user of supplierUsers) {
+        await this.notificationsService.send({
+          userId: user.id,
+          subject: 'Сделка оплачена',
+          message: `Средства по сделке #${deal.id} зарезервированы. Можете приступать к отгрузке.`,
+          type: 'SUCCESS',
+          entityType: 'deal',
+          entityId: deal.id
+        });
       }
 
       return { status: 'ok' };

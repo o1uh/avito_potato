@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AddTrackingDto } from '../dto/shipment.dto';
 import { DealStatus } from '../utils/deal-state-machine';
+import { NotificationsService } from '../../communication/services/notifications.service';
 
 @Injectable()
 export class ShipmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+) {}
 
   async addTracking(dealId: number, supplierId: number, dto: AddTrackingDto) {
     const deal = await this.prisma.deal.findUnique({
@@ -36,7 +40,20 @@ export class ShipmentService {
           sentAt: new Date(),
         },
       });
+      const buyerUsers = await this.prisma.user.findMany({
+        where: { companyId: deal.buyerCompanyId, roleInCompanyId: { in: [1, 2] } }
+      });
 
+      for (const user of buyerUsers) {
+        await this.notificationsService.send({
+          userId: user.id,
+          subject: 'Товар отгружен',
+          message: `Поставщик добавил трек-номер по сделке #${dealId}. Груз в пути.`,
+          type: 'INFO',
+          entityType: 'deal',
+          entityId: dealId
+        });
+      }
       // Переводим сделку в статус SHIPPED
       await tx.deal.update({
         where: { id: deal.id },

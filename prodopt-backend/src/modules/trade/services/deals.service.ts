@@ -3,7 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { EscrowService } from '../../finance/services/escrow.service';
 import { DocumentsService } from '../../documents/services/documents.service';
 import { NotificationsService } from '../../communication/services/notifications.service';
-import { AddressesService } from '../../users/services/addresses.service'; // Импорт
+import { AddressesService } from '../../users/services/addresses.service'; 
 import { DealStateMachine, DealStatus } from '../utils/deal-state-machine';
 import { Prisma } from '@prisma/client';
 import { CreateDealFromOfferDto } from '../dto/trade.dto';
@@ -17,7 +17,7 @@ export class DealsService {
     private readonly escrowService: EscrowService,
     private readonly documentsService: DocumentsService,
     private readonly notificationsService: NotificationsService,
-    private readonly addressesService: AddressesService, // Инжект
+    private readonly addressesService: AddressesService,
   ) {}
 
   async createFromOffer(dto: CreateDealFromOfferDto, buyerCompanyId: number) {
@@ -87,6 +87,26 @@ export class DealsService {
         },
       });
 
+      // 4. Отправляем уведомления (Используем newDeal, так как deal еще не определен)
+      const supplierUsers = await this.prisma.user.findMany({
+        where: { companyId: newDeal.supplierCompanyId, roleInCompanyId: { in: [1, 2] } }
+      });
+
+      for (const user of supplierUsers) {
+        // Мы не используем await здесь намеренно, или ловим ошибки, 
+        // чтобы сбой уведомления не откатывал транзакцию сделки (в идеале)
+        // Но так как это внутри транзакции, лучше использовать внешний сервис очередей.
+        // Для MVP оставим await, но обернем в try/catch внутри NotificationsService (он там есть)
+        await this.notificationsService.send({
+          userId: user.id,
+          subject: 'Сделка согласована',
+          message: `Покупатель принял ваше предложение. Сделка #${newDeal.id} создана. Ожидайте оплаты.`,
+          type: 'SUCCESS',
+          entityType: 'deal',
+          entityId: newDeal.id
+        });
+      }
+
       return newDeal;
     });
 
@@ -138,7 +158,6 @@ export class DealsService {
   }
 
   private async generateContract(dealId: number) {
-    // 1. Запрашиваем полные данные по сделке
     const fullDeal = await this.prisma.deal.findUnique({
         where: { id: dealId },
         include: { 
@@ -152,11 +171,9 @@ export class DealsService {
 
     if (!fullDeal) return;
 
-    // 2. Получаем реальные юридические адреса
     const supplierAddress = await this.addressesService.getLegalAddressString(fullDeal.supplier.id);
     const buyerAddress = await this.addressesService.getLegalAddressString(fullDeal.buyer.id);
 
-    // 3. Формируем данные для шаблона
     const contractData = {
         number: `D-${fullDeal.id}/${new Date().getFullYear()}`,
         date: new Date().toLocaleDateString('ru-RU'),
@@ -164,13 +181,13 @@ export class DealsService {
         supplier: { 
             name: fullDeal.supplier.name, 
             inn: fullDeal.supplier.inn, 
-            address: supplierAddress, // ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ АДРЕС
+            address: supplierAddress, 
             director: 'Генеральный директор'
         }, 
         buyer: { 
             name: fullDeal.buyer.name, 
             inn: fullDeal.buyer.inn, 
-            address: buyerAddress, // ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ АДРЕС
+            address: buyerAddress, 
             director: 'Генеральный директор'
         },
         items: fullDeal.items.map((item, index) => ({
@@ -183,7 +200,6 @@ export class DealsService {
         }))
     };
     
-    // 4. Генерируем
     await this.documentsService.createDocument('contract', contractData, 1, 'deal', fullDeal.id);
   }
 
@@ -224,11 +240,9 @@ export class DealsService {
 
     await this.escrowService.release(dealId);
 
-    // Получаем адреса для Акта
     const supplierAddress = await this.addressesService.getLegalAddressString(deal.supplier.id);
     const buyerAddress = await this.addressesService.getLegalAddressString(deal.buyer.id);
 
-    // Подготовка реальных данных для Акта/УПД
     const docData = {
         number: `ACT-${deal.id}`,
         date: new Date().toLocaleDateString('ru-RU'),
@@ -269,11 +283,32 @@ export class DealsService {
         this.logger.error(`Failed to generate closing documents for deal ${dealId}`, e);
     }
 
-    return this.prisma.deal.update({
+    const updatedDeal = await this.prisma.deal.update({
       where: { id: dealId },
       data: { dealStatusId: DealStatus.COMPLETED },
       include: { status: true },
     });
+
+    const supplierUsers = await this.prisma.user.findMany({
+      where: { 
+        companyId: deal.supplierCompanyId, 
+        roleInCompanyId: { in: [1, 2] }    
+      } 
+    });
+
+    for (const user of supplierUsers) {
+      await this.notificationsService.send({
+        userId: user.id,
+        toEmail: user.email,
+        subject: 'Сделка завершена',
+        message: `Покупатель подтвердил приемку по сделке #${dealId}. Средства переведены на ваш счет.`,
+        type: 'SUCCESS',
+        entityType: 'deal',
+        entityId: dealId
+      });
+    }
+
+    return updatedDeal;
   }
 
   async findAll(companyId: number) {
@@ -287,7 +322,7 @@ export class DealsService {
       include: {
         buyer: true,
         supplier: true,
-        status: true, // Нужно для канбана
+        status: true,
       },
       orderBy: { updatedAt: 'desc' },
     });

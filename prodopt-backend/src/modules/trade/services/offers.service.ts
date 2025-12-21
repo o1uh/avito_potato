@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateOfferDto, NegotiateOfferDto } from '../dto/trade.dto';
+import { NotificationsService } from '../../communication/services/notifications.service';
 
 @Injectable()
 export class OffersService {
-  constructor(private readonly prisma: PrismaService) {}
-
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService
+  ) {}
+  
   async create(supplierCompanyId: number, dto: CreateOfferDto) {
     const request = await this.prisma.purchaseRequest.findUnique({
       where: { id: dto.requestId },
@@ -18,7 +22,7 @@ export class OffersService {
       throw new ForbiddenException('Этот запрос адресован другой компании');
     }
 
-    return this.prisma.commercialOffer.create({
+    const savedOffer = await this.prisma.commercialOffer.create({
       data: {
         purchaseRequestId: dto.requestId,
         supplierCompanyId,
@@ -36,8 +40,25 @@ export class OffersService {
       },
       include: { items: true } // Возвращаем созданные items
     });
-  }
 
+    const buyerUsers = await this.prisma.user.findMany({
+      where: { companyId: request.buyerCompanyId, roleInCompanyId: { in: [1, 2] } }
+    });
+
+    for (const user of buyerUsers) {
+      await this.notificationsService.send({
+        userId: user.id,
+        subject: 'Получено новое коммерческое предложение',
+        message: `Поступило предложение по запросу #${dto.requestId}`,
+        type: 'INFO',
+        entityType: 'deal', // Используем deal для перехода, или null
+        entityId: savedOffer.id // Или ID запроса
+      });
+    }
+
+    return savedOffer;
+  }
+  
   async negotiate(offerId: number, companyId: number, dto: NegotiateOfferDto) {
     const offer = await this.prisma.commercialOffer.findUnique({ where: { id: offerId } });
     if (!offer) throw new NotFoundException('КП не найдено');

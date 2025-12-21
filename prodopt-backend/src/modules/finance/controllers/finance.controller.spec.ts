@@ -8,6 +8,8 @@ import { TochkaBankAdapter } from '../adapters/tochka-bank.adapter';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { BankWebhookGuard } from '../guards/bank-webhook.guard';
+// 1. Импортируем сервис уведомлений
+import { NotificationsService } from '../../communication/services/notifications.service';
 
 describe('FinanceController (Integration)', () => {
   let app: INestApplication;
@@ -34,7 +36,16 @@ describe('FinanceController (Integration)', () => {
   const mockPrismaService = {
     deal: {
       update: jest.fn(),
-      findUnique: jest.fn(),
+      // 2. ВАЖНО: Возвращаем объект сделки по умолчанию, чтобы не падать с 500
+      findUnique: jest.fn().mockResolvedValue({ 
+        id: 10, 
+        supplierCompanyId: 5, 
+        buyerCompanyId: 6,
+        dealStatusId: 2 
+      }),
+    },
+    user: {
+      findMany: jest.fn().mockResolvedValue([]), // Заглушка для поиска пользователей
     },
   };
 
@@ -43,6 +54,11 @@ describe('FinanceController (Integration)', () => {
       if (key === 'BANK_WEBHOOK_SECRET') return 'test-secret';
       return null;
     }),
+  };
+
+  // 3. Создаем мок для NotificationsService
+  const mockNotificationsService = {
+    send: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -54,7 +70,9 @@ describe('FinanceController (Integration)', () => {
         { provide: TochkaBankAdapter, useValue: mockBankAdapter },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ConfigService, useValue: mockConfigService },
-        BankWebhookGuard, // Реальный гард, но он использует замоканный адаптер
+        // 4. Добавляем провайдер уведомлений
+        { provide: NotificationsService, useValue: mockNotificationsService },
+        BankWebhookGuard, 
       ],
     }).compile();
 
@@ -84,7 +102,6 @@ describe('FinanceController (Integration)', () => {
     };
 
     it('Security: should return 403 if signature is invalid', async () => {
-      // Настраиваем адаптер, чтобы он отклонил подпись
       mockBankAdapter.validateWebhookSignature.mockReturnValue(false);
 
       await request(app.getHttpServer())
@@ -96,7 +113,6 @@ describe('FinanceController (Integration)', () => {
           expect(res.body.message).toContain('Invalid signature');
         });
 
-      // Проверяем, что бизнес-логика не вызывалась
       expect(escrowService.deposit).not.toHaveBeenCalled();
     });
 
@@ -111,11 +127,9 @@ describe('FinanceController (Integration)', () => {
     });
 
     it('Idempotency: should process payment only once (1st time)', async () => {
-      // 1. Подпись валидна
       mockBankAdapter.validateWebhookSignature.mockReturnValue(true);
-      // 2. Транзакция еще НЕ обрабатывалась
       mockTransactionsService.existsByExternalId.mockResolvedValue(false);
-      // 3. Баланс (для проверки перехода в PAID, допустим пока не полная оплата)
+      // Баланс меньше общей суммы -> статус не меняется, уведомления не шлются
       mockEscrowService.getBalance.mockResolvedValue({ amountDeposited: 1000, totalAmount: 5000 });
 
       await request(app.getHttpServer())
@@ -125,29 +139,25 @@ describe('FinanceController (Integration)', () => {
         .expect(200)
         .expect({ status: 'ok' });
 
-      // Проверки
       expect(transactionsService.existsByExternalId).toHaveBeenCalledWith('pay_123');
       expect(escrowService.deposit).toHaveBeenCalledWith(10, 1000);
       expect(transactionsService.linkExternalPaymentId).toHaveBeenCalledWith(10, 'pay_123');
     });
 
     it('Idempotency: should ignore duplicate webhook (2nd time)', async () => {
-      // 1. Подпись валидна
       mockBankAdapter.validateWebhookSignature.mockReturnValue(true);
-      // 2. Транзакция УЖЕ была обработана
       mockTransactionsService.existsByExternalId.mockResolvedValue(true);
 
       await request(app.getHttpServer())
         .post('/finance/webhook/tochka')
         .set('x-signature', 'valid_sig')
         .send(webhookPayload)
-        .expect(200) // Банк ждет 200, даже если мы игнорируем дубль
+        .expect(200)
         .expect((res) => {
           expect(res.body.status).toBe('ok');
           expect(res.body.message).toBe('Already processed');
         });
 
-      // Проверка: депозит НЕ должен вызываться повторно
       expect(escrowService.deposit).not.toHaveBeenCalled();
     });
 
@@ -155,7 +165,7 @@ describe('FinanceController (Integration)', () => {
       mockBankAdapter.validateWebhookSignature.mockReturnValue(true);
       mockTransactionsService.existsByExternalId.mockResolvedValue(false);
       
-      // Эскроу возвращает, что сумма на счете равна сумме сделки
+      // Баланс равен сумме -> статус меняется
       mockEscrowService.getBalance.mockResolvedValue({ 
         amountDeposited: 5000, 
         totalAmount: 5000 
@@ -168,13 +178,16 @@ describe('FinanceController (Integration)', () => {
         .expect(200);
 
       expect(escrowService.deposit).toHaveBeenCalled();
-      // Проверяем обновление статуса сделки
       expect(mockPrismaService.deal.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 10 },
           data: { dealStatusId: 3 }, // 3 = PAID
         })
       );
+      
+      // Проверяем, что была попытка найти пользователей для уведомления
+      // (так как статус сменился на PAID)
+      expect(mockPrismaService.user.findMany).toHaveBeenCalled();
     });
   });
 });
