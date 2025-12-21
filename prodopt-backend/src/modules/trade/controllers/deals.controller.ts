@@ -22,6 +22,12 @@ export class DealsController {
     return this.dealsService.createFromOffer(dto, companyId);
   }
 
+  @Get()
+  @ApiOperation({ summary: 'Получить список сделок' })
+  async getAll(@CurrentUser('companyId') companyId: number) {
+    return this.dealsService.findAll(companyId);
+  }
+
   @Post(':id/accept')
   @ApiOperation({ summary: 'Принять условия сделки (Переход в AGREED, создание счета)' })
   async accept(

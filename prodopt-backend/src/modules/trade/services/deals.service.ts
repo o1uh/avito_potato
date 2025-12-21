@@ -275,4 +275,21 @@ export class DealsService {
       include: { status: true },
     });
   }
+
+  async findAll(companyId: number) {
+    return this.prisma.deal.findMany({
+      where: {
+        OR: [
+          { buyerCompanyId: companyId },
+          { supplierCompanyId: companyId },
+        ],
+      },
+      include: {
+        buyer: true,
+        supplier: true,
+        status: true, // Нужно для канбана
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
 }
