@@ -141,18 +141,18 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   await expect(supplierPage.locator('.ant-drawer-title')).toContainText('Новое коммерческое предложение');
   await supplierPage.fill('textarea[id="deliveryConditions"]', 'Pickup from Moscow');
   await supplierPage.click('button:has-text("Отправить КП")');
-  
+  await supplierPage.reload();
   await supplierPage.click('div[role="tab"]:has-text("Коммерческие предложения")');
-  await expect(supplierPage.locator('table')).toContainText('Sent');
+  await expect(supplierPage.locator('tr').filter({ hasText: PRODUCT_NAME }).filter({ hasText: 'Sent' })).toBeVisible();
 
   // --- BUYER: Принять Offer ---
   await buyerPage.goto('/trade/deals');
   await buyerPage.click('div[role="tab"]:has-text("Коммерческие предложения")');
-  await expect(buyerPage.locator('table')).toContainText('Sent');
+  await expect(buyerPage.locator('tr').filter({ hasText: PRODUCT_NAME }).filter({ hasText: 'Sent' })).toBeVisible();
   
   await buyerPage.click('button:has-text("Просмотр")');
-  await buyerPage.locator('.ant-drawer-close').click(); 
-  await expect(buyerPage.locator('.ant-drawer')).toBeHidden();
+  await buyerPage.locator('.ant-drawer-open .ant-drawer-close').click(); 
+  await expect(buyerPage.locator('.ant-drawer-open')).toHaveCount(0);
   
   await buyerPage.locator(`tr:has-text("${PRODUCT_NAME}") button`).filter({ hasText: 'Принять' }).click();
 
@@ -165,7 +165,7 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   await buyerPage.fill('input[id="city"]', 'Moscow');
   await buyerPage.fill('input[id="street"]', 'Tverskaya');
   await buyerPage.fill('input[id="house"]', '1');
-  await buyerPage.click('div.ant-modal-footer button.ant-btn-primary'); 
+  await buyerPage.click('button:has-text("Сохранить")');
   await expect(buyerPage.locator('.ant-modal')).toBeHidden();
 
   // Принятие (повторно)

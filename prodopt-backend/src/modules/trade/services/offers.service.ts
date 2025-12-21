@@ -57,14 +57,19 @@ export class OffersService {
     });
   }
 
-  async findAll(companyId: number, type: 'sent' | 'received') {
+   async findAll(companyId: number, type: 'sent' | 'received') {
     if (type === 'sent') {
       // Исходящие: где я поставщик
       return this.prisma.commercialOffer.findMany({
         where: { supplierCompanyId: companyId },
         include: {
           purchaseRequest: {
-            include: { buyer: { select: { id: true, name: true,} } } // Чтобы видеть, кому отправили
+            include: { 
+                buyer: { select: { id: true, name: true } },
+                targetVariant: { 
+                    include: { product: true } 
+                }
+            } 
           },
           status: true,
           items: { include: { productVariant: { include: { product: true } } } }
@@ -76,12 +81,25 @@ export class OffersService {
       return this.prisma.commercialOffer.findMany({
         where: {
           purchaseRequest: {
-            buyerCompanyId: companyId, // Связь через запрос
+            buyerCompanyId: companyId,
           },
         },
         include: {
-          supplier: { select: { id: true, name: true, rating: true } }, // Чтобы видеть, кто прислал
-          purchaseRequest: true, // Контекст запроса
+          supplier: { select: { id: true, name: true, rating: true } },
+          
+          // --- БЫЛО: ---
+          // purchaseRequest: true, 
+
+          // --- СТАЛО (ИСПРАВЛЕНИЕ): ---
+          purchaseRequest: {
+            include: {
+                targetVariant: {
+                    include: { product: true }
+                }
+            }
+          },
+          // ---------------------------
+
           status: true,
           items: { include: { productVariant: { include: { product: true } } } }
         },
@@ -91,4 +109,6 @@ export class OffersService {
       throw new BadRequestException('Неверный параметр type. Используйте sent или received');
     }
   }
+
+  
 }

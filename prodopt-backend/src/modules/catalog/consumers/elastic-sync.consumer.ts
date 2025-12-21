@@ -63,6 +63,7 @@ export class ElasticSyncConsumer extends WorkerHost {
       updatedAt: product.updatedAt,
       productStatusId: product.productStatusId,
       variants: product.variants.map((v) => ({
+        id: v.id,
         sku: v.sku,
         variantName: v.variantName,
         price: Number(v.price),
