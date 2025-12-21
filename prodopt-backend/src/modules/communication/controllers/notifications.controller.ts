@@ -1,15 +1,19 @@
-import { Controller, Get, Patch, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { NotificationsService } from '../services/notifications.service'; // <--- Импорт сервиса
 
 @ApiTags('Communication: Notifications')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService, // <--- Внедрение сервиса
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Получить список моих уведомлений' })
@@ -48,7 +52,6 @@ export class NotificationsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser('sub') userId: number,
   ) {
-    // updateMany используется для безопасности (проверка recipientId в where)
     await this.prisma.notification.updateMany({
       where: { id, recipientId: userId },
       data: { isRead: true },
@@ -62,6 +65,20 @@ export class NotificationsController {
     await this.prisma.notification.updateMany({
       where: { recipientId: userId, isRead: false },
       data: { isRead: true },
+    });
+    return { success: true };
+  }
+
+  // --- НОВЫЙ ЭНДПОИНТ ДЛЯ ТЕСТА ---
+  @Post('test-send')
+  @ApiOperation({ summary: '[DEV] Отправить себе тестовое уведомление' })
+  async sendTestNotification(@CurrentUser('sub') userId: number) {
+    await this.notificationsService.send({
+        userId: userId,
+        subject: 'Проверка связи (Real-time)',
+        message: `Это реальное уведомление с сервера. Время: ${new Date().toLocaleTimeString()}`,
+        type: 'SUCCESS',
+        entityType: 'system',
     });
     return { success: true };
   }

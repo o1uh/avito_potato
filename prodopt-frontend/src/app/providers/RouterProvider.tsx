@@ -6,11 +6,14 @@ import { ProfilePage } from '@/pages/profile/ProfilePage';
 import { CompanyPage } from '@/pages/profile/CompanyPage';
 import { StatsPage } from '@/pages/profile/StatsPage';
 import { PartnersPage } from '@/pages/networking/PartnersPage';
-// --- ИМПОРТЫ НОВЫХ СТРАНИЦ ---
 import { CatalogPage } from '@/pages/catalog/CatalogPage';
 import { ProductDetails } from '@/pages/catalog/ProductDetails';
-import { useSessionStore } from '@/entities/session/model/store';
 import { CreateProductPage } from '@/pages/catalog/CreateProductPage';
+import { DealsPage } from '@/pages/trade/DealsPage'; // <--- Добавлено
+import { DealDetailsPage } from '@/pages/trade/DealDetailsPage'; // <--- Добавлено
+import { useSessionStore } from '@/entities/session/model/store';
+// Импортируем созданный Layout
+import { MainLayout } from '@/widgets/Layout';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const isAuth = useSessionStore((state) => state.isAuth);
@@ -18,10 +21,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
 };
 
 const router = createBrowserRouter([
-  {
-    path: ROUTES.HOME,
-    element: <AuthGuard><Navigate to={ROUTES.PROFILE} /></AuthGuard>,
-  },
+  // --- Публичные маршруты (без шапки) ---
   {
     path: ROUTES.LOGIN,
     element: <LoginPage />,
@@ -30,37 +30,58 @@ const router = createBrowserRouter([
     path: ROUTES.REGISTER,
     element: <RegisterPage />,
   },
+
+  // --- Защищенные маршруты (с Шапкой) ---
   {
-    path: ROUTES.PROFILE,
-    element: <AuthGuard><ProfilePage /></AuthGuard>,
-  },
-  {
-    path: ROUTES.COMPANY, 
-    element: <AuthGuard><CompanyPage /></AuthGuard>,
-  },
-  {
-    path: '/profile/stats', 
-    element: <AuthGuard><StatsPage /></AuthGuard>,
-  },
-  {
-    path: ROUTES.PARTNERS, 
-    element: <AuthGuard><PartnersPage /></AuthGuard>,
-  },
-  // --- НОВЫЕ МАРШРУТЫ КАТАЛОГА ---
-  {
-    path: ROUTES.CATALOG,
-    element: <AuthGuard><CatalogPage /></AuthGuard>,
-  },
-  {
-    path: '/catalog/create',
-    element: <AuthGuard><CreateProductPage /></AuthGuard>,
-  },
-  {
-    // Важно: путь должен совпадать с тем, что генерирует ROUTES.PRODUCT(id)
-    // В конфиге routes.ts: PRODUCT: (id) => `/catalog/${id}`
-    path: '/catalog/:id', 
-    element: <AuthGuard><ProductDetails /></AuthGuard>,
-  },
+    element: (
+      <AuthGuard>
+        <MainLayout />
+      </AuthGuard>
+    ),
+    children: [
+      {
+        path: ROUTES.HOME,
+        element: <Navigate to={ROUTES.PROFILE} />,
+      },
+      {
+        path: ROUTES.PROFILE,
+        element: <ProfilePage />,
+      },
+      {
+        path: ROUTES.COMPANY, 
+        element: <CompanyPage />,
+      },
+      {
+        path: '/profile/stats', 
+        element: <StatsPage />,
+      },
+      {
+        path: ROUTES.PARTNERS, 
+        element: <PartnersPage />,
+      },
+      {
+        path: ROUTES.CATALOG,
+        element: <CatalogPage />,
+      },
+      {
+        path: '/catalog/create',
+        element: <CreateProductPage />,
+      },
+      {
+        path: '/catalog/:id', 
+        element: <ProductDetails />,
+      },
+      // --- Trade Routes (Добавлено) ---
+      {
+        path: ROUTES.DEALS,
+        element: <DealsPage />,
+      },
+      {
+        path: '/trade/deals/:id',
+        element: <DealDetailsPage />,
+      },
+    ]
+  }
 ]);
 
 export const RouterProvider = () => {

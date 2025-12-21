@@ -1,17 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { EmailService } from '../../../common/providers/email.service';
+import { ChatGateway } from '../gateways/chat.gateway'; // <--- ИМПОРТ
 
 export interface NotificationPayload {
-  userId: number;           // ID получателя (обязательно для БД)
-  toEmail?: string;         // Email (если нужно дублировать на почту)
-  subject: string;          // Заголовок
-  message: string;          // Текст сообщения
+  userId: number;
+  toEmail?: string;
+  subject: string;
+  message: string;
   type?: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
-  entityType?: 'deal' | 'offer' | 'dispute' | 'system';
+  entityType?: string; // Поправил тип, чтобы TS не ругался на 'partner_request'
   entityId?: number;
-  template?: string;        // Имя шаблона Email
-  context?: any;            // Данные для шаблона
+  template?: string;
+  context?: any;
 }
 
 @Injectable()
@@ -20,16 +21,14 @@ export class NotificationsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    private readonly chatGateway: ChatGateway, // <--- ВНЕДРЕНИЕ
   ) {}
 
-  /**
-   * Универсальная отправка уведомления (DB + Email)
-   */
   async send(payload: NotificationPayload) {
     try {
-      // Сохраняем в БД (In-App Notification)
-      await this.prisma.notification.create({
+      // 1. Сохраняем в БД
+      const notification = await this.prisma.notification.create({
         data: {
           recipientId: payload.userId,
           title: payload.subject,
@@ -41,7 +40,20 @@ export class NotificationsService {
         },
       });
 
-      // Отправляем Email (если указан адрес и шаблон)
+      // 2. Отправляем в Socket (Real-time)
+      // Важно: Gateway должен уметь отправлять конкретному юзеру.
+      // Если в ChatGateway нет метода sendToUser, его надо добавить (см. ниже).
+      this.chatGateway.sendNotificationToUser(payload.userId, {
+        id: notification.id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        entityType: notification.entityType,
+        entityId: notification.entityId,
+        createdAt: notification.createdAt,
+      });
+
+      // 3. Отправляем Email
       if (payload.toEmail && payload.template) {
         this.emailService.sendMail(
           payload.toEmail,
