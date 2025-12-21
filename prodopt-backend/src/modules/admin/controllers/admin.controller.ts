@@ -45,4 +45,13 @@ export class AdminController {
     if (adminId !== 1) throw new ForbiddenException('Access restricted');
     return this.moderationService.approveProduct(id, adminId);
   }
+
+  // --- ДОБАВИТЬ ЭТОТ МЕТОД ---
+  @Patch('moderation/products/:id/reject')
+  @ApiOperation({ summary: 'Отклонить товар' })
+  async rejectProduct(@Param('id', ParseIntPipe) id: number, @CurrentUser('sub') adminId: number) {
+    if (adminId !== 1) throw new ForbiddenException('Access restricted');
+    return this.moderationService.rejectProduct(id, adminId);
+  }
 }
+

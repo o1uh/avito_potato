@@ -40,7 +40,7 @@ export const ImagesStep = ({ productId, onFinish }: Props) => {
     try {
       // Вызываем публикацию
       await productApi.publish(productId);
-      message.success('Товар опубликован и доступен покупателям!');
+      message.success('Товар отправлен на модерацию!');
       onFinish(); // Редирект
     } catch (e: any) {
       // Если бэк вернет ошибку (например, фото реально не загрузились)
@@ -99,7 +99,7 @@ export const ImagesStep = ({ productId, onFinish }: Props) => {
       )}
 
       <Button type="primary" size="large" onClick={handleFinishClick} className="px-10 h-12 text-lg">
-        Завершить и Опубликовать
+        Отправить на модерацию
       </Button>
     </div>
   );

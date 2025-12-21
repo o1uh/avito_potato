@@ -41,7 +41,9 @@ export class EscrowService {
     const account = await this.prisma.escrowAccount.findUnique({ where: { dealId } });
     if (!account) throw new Error('Escrow account not found');
 
-    const amountToRelease = Number(account.amountDeposited) - Number(account.platformFeeAmount);
+    const rawAmount = Number(account.amountDeposited) - Number(account.platformFeeAmount);
+    // Округляем до 2 знаков и приводим обратно к числу
+    const amountToRelease = Number(rawAmount.toFixed(2));
     
     if (amountToRelease <= 0) {
         this.logger.warn(`Release amount <= 0 for deal ${dealId}`);

@@ -186,7 +186,7 @@ export class ProductsService {
 
     const updated = await this.prisma.product.update({
       where: { id },
-      data: { productStatusId: 2 }, // 2 = Опубликован (Published)
+      data: { productStatusId: 4 }, // 2 = Опубликован (Published)
     });
 
     // Обновляем индекс в Elastic, чтобы товар появился в поиске (или обновил статус)

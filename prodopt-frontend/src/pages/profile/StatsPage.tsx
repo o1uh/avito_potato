@@ -1,5 +1,7 @@
 import { CompanyStats } from '@/widgets/CompanyStats';
 import { Card, Typography } from 'antd';
+// Импорт новых графиков
+import { SalesChart, DealsStructureChart } from '@/widgets/CompanyStats/SalesChart'; 
 
 const { Title } = Typography;
 
@@ -14,11 +16,18 @@ export const StatsPage = () => {
       <CompanyStats />
 
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card title="Динамика продаж" className="shadow-sm h-64 flex items-center justify-center text-gray-400">
-          График будет добавлен в следующих версиях
+        {/* График 1 */}
+        <Card title="Динамика оборота (Демо)" className="shadow-sm h-[350px]">
+          <div className="h-[280px] w-full">
+            <SalesChart />
+          </div>
         </Card>
-        <Card title="Структура сделок" className="shadow-sm h-64 flex items-center justify-center text-gray-400">
-          График будет добавлен в следующих версиях
+
+        {/* График 2 */}
+        <Card title="Топ категорий (Демо)" className="shadow-sm h-[350px]">
+          <div className="h-[280px] w-full">
+            <DealsStructureChart />
+          </div>
         </Card>
       </div>
     </div>
