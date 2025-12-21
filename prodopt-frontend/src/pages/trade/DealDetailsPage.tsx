@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Row, Col, Typography, Spin, Alert, Button, Steps } from 'antd';
+import { Row, Col, Typography, Spin, Alert, Button, Steps, List, Empty } from 'antd';
 import { dealApi } from '@/entities/deal/api/deal.api';
 import { DealStatus } from '@/shared/config/enums';
 import { usePermission } from '@/shared/lib/permissions';
@@ -10,11 +10,25 @@ import { DealHistory } from '@/widgets/DealHistory';
 import { PayDealButton } from '@/features/trade/PayDealButton';
 import { AddTrackingModal } from '@/features/trade/AddTrackingModal';
 import { ConfirmDeliveryBtn } from '@/features/trade/ConfirmDeliveryBtn';
+import { DownloadDocButton } from '@/features/documents/DownloadDocButton';
 import { useState } from 'react';
-import { CarOutlined } from '@ant-design/icons';
-import { formatCurrency } from '@/shared/lib/currency'; // Добавлен импорт
+import { CarOutlined, FileTextOutlined } from '@ant-design/icons';
+import { formatCurrency } from '@/shared/lib/currency';
+import { $api } from '@/shared/api/base'; // Импортируем для прямого запроса документов
 
 const { Title, Text } = Typography;
+
+// Интерфейс документа (локально, так как нет в shared types)
+interface DealDocument {
+  id: number;
+  entityType: string;
+  entityId: number;
+  documentType: {
+    id: number;
+    name: string;
+  };
+  createdAt: string;
+}
 
 export const DealDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,11 +37,25 @@ export const DealDetailsPage = () => {
   
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
 
+  // Запрос сделки
   const { data: deal, isLoading, isError } = useQuery({
     queryKey: ['deal', id],
     queryFn: () => dealApi.getOne(dealId),
     enabled: !!id,
     refetchInterval: 5000,
+  });
+
+  // Запрос документов по сделке
+  const { data: documents, isLoading: isDocsLoading } = useQuery({
+    queryKey: ['deal-documents', id],
+    queryFn: async () => {
+      const res = await $api.get<DealDocument[]>('/documents/list', {
+        params: { entityType: 'deal', entityId: dealId }
+      });
+      return res.data;
+    },
+    enabled: !!id,
+    refetchInterval: 10000, // Периодическое обновление, чтобы поймать сгенерированные доки
   });
 
   if (isLoading) return <div className="flex justify-center p-20"><Spin size="large" /></div>;
@@ -128,9 +156,38 @@ export const DealDetailsPage = () => {
         <Col xs={24} md={8}>
             <DealInfoCard deal={deal} isSupplier={isSupplier} />
             
-            <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 opacity-50">
-                <Title level={5}>Документы</Title>
-                <Text type="secondary">Генерация документов будет доступна в следующем обновлении.</Text>
+            {/* Секция документов */}
+            <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center gap-2 mb-3">
+                    <FileTextOutlined className="text-gray-400" />
+                    <Title level={5} className="!m-0">Документы</Title>
+                </div>
+                
+                {isDocsLoading ? (
+                    <div className="text-center py-4"><Spin /></div>
+                ) : documents && documents.length > 0 ? (
+                    <List
+                        size="small"
+                        dataSource={documents}
+                        renderItem={(doc) => (
+                            <List.Item className="!px-0 !py-2">
+                                <div className="flex justify-between items-center w-full">
+                                    <Text className="text-sm">{doc.documentType.name}</Text>
+                                    <DownloadDocButton 
+                                        documentId={doc.id} 
+                                        fileName={`${doc.documentType.name}_${deal.id}.pdf`}
+                                        label="PDF"
+                                    />
+                                </div>
+                            </List.Item>
+                        )}
+                    />
+                ) : (
+                    <Empty 
+                        image={Empty.PRESENTED_IMAGE_SIMPLE} 
+                        description={<span className="text-xs text-gray-400">Документы еще не сформированы</span>} 
+                    />
+                )}
             </div>
         </Col>
       </Row>
