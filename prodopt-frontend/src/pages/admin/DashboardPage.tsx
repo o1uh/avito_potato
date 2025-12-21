@@ -11,7 +11,7 @@ import { ROUTES } from '@/shared/config/routes';
 const { Title } = Typography;
 
 export const DashboardPage = () => {
-  const { isAdmin } = usePermission();
+  const { isPlatformAdmin } = usePermission();
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
@@ -19,10 +19,10 @@ export const DashboardPage = () => {
       const res = await $api.get('/admin/stats');
       return res.data;
     },
-    enabled: isAdmin
+    enabled: isPlatformAdmin
   });
 
-  if (!isAdmin) return <Navigate to={ROUTES.HOME} />;
+  if (!isPlatformAdmin) return <Navigate to={ROUTES.HOME} />;
   if (isLoading) return <Loader />;
 
   return (

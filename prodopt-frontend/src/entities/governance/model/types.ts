@@ -1,6 +1,11 @@
 import { Company } from '@/entities/user/model/types';
 import { Deal } from '@/entities/deal/model/types';
 
+export enum DisputeStatus {
+  OPEN = 1,
+  CLOSED = 2,
+}
+
 export interface Dispute {
   id: number;
   dealId: number;
@@ -35,6 +40,18 @@ export interface ResolveDisputeDto {
 }
 
 export interface CreateReviewDto {
-  rating: number;
+  rating: number; // 1-5
   comment: string;
+}
+
+// --- НОВЫЙ ТИП ---
+export interface Review {
+  id: number;
+  serviceRating: number;
+  serviceComment: string;
+  createdAt: string;
+  author: {
+    id: number;
+    name: string;
+  };
 }

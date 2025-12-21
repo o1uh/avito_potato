@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Row, Col, Typography, Spin, Alert, Button, Steps, List, Empty, Space } from 'antd'; // +Space
+import { Row, Col, Typography, Spin, Alert, Button, Steps, List, Empty, Space, Table } from 'antd'; // Добавил Table
 import { dealApi } from '@/entities/deal/api/deal.api';
 import { DealStatus } from '@/shared/config/enums';
 import { usePermission } from '@/shared/lib/permissions';
@@ -11,8 +11,8 @@ import { PayDealButton } from '@/features/trade/PayDealButton';
 import { AddTrackingModal } from '@/features/trade/AddTrackingModal';
 import { ConfirmDeliveryBtn } from '@/features/trade/ConfirmDeliveryBtn';
 import { DownloadDocButton } from '@/features/documents/DownloadDocButton';
-import { OpenDisputeModal } from '@/features/governance/OpenDisputeModal'; // <--- NEW
-import { CreateReviewForm } from '@/features/governance/CreateReviewForm'; // <--- NEW
+import { OpenDisputeModal } from '@/features/governance/OpenDisputeModal';
+import { CreateReviewForm } from '@/features/governance/CreateReviewForm';
 import { useState } from 'react';
 import { CarOutlined, FileTextOutlined, WarningOutlined } from '@ant-design/icons';
 import { formatCurrency } from '@/shared/lib/currency';
@@ -37,7 +37,7 @@ export const DealDetailsPage = () => {
   const { companyId } = usePermission();
   
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
-  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false); // <--- NEW
+  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
 
   const { data: deal, isLoading, isError } = useQuery({
     queryKey: ['deal', id],
@@ -65,20 +65,45 @@ export const DealDetailsPage = () => {
   const isSupplier = deal.supplierCompanyId === companyId;
   const isParticipant = isBuyer || isSupplier;
 
-  // Логика доступности спора
   const canOpenDispute = isParticipant && (deal.dealStatusId === DealStatus.PAID || deal.dealStatusId === DealStatus.SHIPPED);
-  
-  // Логика доступности отзыва
   const canReview = isParticipant && deal.dealStatusId === DealStatus.COMPLETED;
 
   const currentStep = () => {
-      if (deal.dealStatusId === DealStatus.DISPUTE) return 3; // Визуально стопорим на этапе доставки или подсвечиваем ошибку
+      if (deal.dealStatusId === DealStatus.DISPUTE) return 3;
       if (deal.dealStatusId >= DealStatus.COMPLETED) return 4;
       if (deal.dealStatusId === DealStatus.SHIPPED) return 3;
       if (deal.dealStatusId === DealStatus.PAID) return 2;
       if (deal.dealStatusId === DealStatus.AGREED) return 1;
       return 0;
   };
+
+  // Конфигурация колонок для таблицы товаров
+  const itemsColumns = [
+    {
+      title: 'Товар',
+      dataIndex: 'productNameAtDealMoment',
+      key: 'name',
+      render: (text: string) => <span className="font-medium">{text || 'Товар'}</span>
+    },
+    {
+      title: 'Кол-во',
+      key: 'quantity',
+      render: (_: any, record: any) => (
+        <span>{record.quantity} {record.measurementUnitAtDealMoment}</span>
+      )
+    },
+    {
+      title: 'Цена',
+      dataIndex: 'pricePerUnit',
+      key: 'price',
+      render: (val: any) => formatCurrency(val)
+    },
+    {
+      title: 'Сумма',
+      key: 'total',
+      render: (_: any, record: any) => formatCurrency(record.pricePerUnit * record.quantity)
+    }
+  ];
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -115,7 +140,6 @@ export const DealDetailsPage = () => {
                 <ConfirmDeliveryBtn dealId={dealId} />
             )}
 
-            {/* --- GOVERNANCE --- */}
             {canOpenDispute && (
                 <Button danger icon={<WarningOutlined />} onClick={() => setIsDisputeModalOpen(true)}>
                     Открыть спор
@@ -128,7 +152,6 @@ export const DealDetailsPage = () => {
         </Space>
       </div>
 
-      {/* Модалка спора */}
       <OpenDisputeModal 
         dealId={dealId} 
         isOpen={isDisputeModalOpen} 
@@ -149,7 +172,6 @@ export const DealDetailsPage = () => {
           />
       </div>
 
-      {/* Если спор открыт, показываем алерт */}
       {deal.dealStatusId === DealStatus.DISPUTE && (
           <Alert 
             type="error" 
@@ -163,29 +185,16 @@ export const DealDetailsPage = () => {
       <Row gutter={[24, 24]}>
         <Col xs={24} md={16}>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-                <Title level={4}>Состав заказа</Title>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500">
-                            <tr>
-                                <th className="p-2">Товар</th>
-                                <th className="p-2">Кол-во</th>
-                                <th className="p-2">Цена</th>
-                                <th className="p-2">Сумма</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {deal.items?.map((item: any) => (
-                                <tr key={item.id} className="border-b">
-                                    <td className="p-2">{item.productNameAtDealMoment}</td>
-                                    <td className="p-2">{item.quantity} {item.measurementUnitAtDealMoment}</td>
-                                    <td className="p-2">{formatCurrency(item.pricePerUnit)}</td>
-                                    <td className="p-2">{formatCurrency(item.pricePerUnit * item.quantity)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <Title level={4} className="mb-4">Состав заказа</Title>
+                {/* Используем Ant Design Table вместо HTML table */}
+                <Table 
+                  dataSource={deal.items} 
+                  columns={itemsColumns} 
+                  rowKey="id"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: 'Нет данных о товарах' }}
+                />
             </div>
 
             <DealHistory deal={deal} />

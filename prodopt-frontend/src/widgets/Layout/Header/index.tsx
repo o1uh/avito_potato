@@ -1,10 +1,19 @@
 import { Layout, Menu, Button, Dropdown, Avatar, Space } from 'antd';
-import { UserOutlined, LogoutOutlined, AppstoreOutlined, ShoppingOutlined, TeamOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd'; // <--- Импортируем тип
+import { 
+  UserOutlined, 
+  LogoutOutlined, 
+  AppstoreOutlined, 
+  ShoppingOutlined, 
+  TeamOutlined, 
+  SafetyCertificateOutlined 
+} from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { ROUTES } from '@/shared/config/routes';
 import { useSessionStore } from '@/entities/session/model/store';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { LogoutButton } from '@/features/auth/LogoutButton';
+import { usePermission } from '@/shared/lib/permissions';
 
 const { Header: AntHeader } = Layout;
 
@@ -12,12 +21,23 @@ export const Header = () => {
   const location = useLocation();
   const user = useSessionStore((state) => state.user);
   const isAuth = useSessionStore((state) => state.isAuth);
+  const { isPlatformAdmin } = usePermission();
 
-  const menuItems = [
+  // Явно указываем тип массива, чтобы можно было пушить любые ключи (string)
+  const menuItems: MenuProps['items'] = [
     { key: ROUTES.CATALOG, label: <Link to={ROUTES.CATALOG}>Каталог</Link>, icon: <ShoppingOutlined /> },
     { key: ROUTES.DEALS, label: <Link to={ROUTES.DEALS}>Сделки</Link>, icon: <AppstoreOutlined /> },
     { key: ROUTES.PARTNERS, label: <Link to={ROUTES.PARTNERS}>Партнеры</Link>, icon: <TeamOutlined /> },
   ];
+
+  // Показываем кнопку ТОЛЬКО Супер-Админу (ID 1)
+  if (isPlatformAdmin) {
+    menuItems.push({
+      key: ROUTES.ADMIN,
+      label: <Link to={ROUTES.ADMIN}>Администрирование</Link>,
+      icon: <SafetyCertificateOutlined className="text-red-500" />
+    });
+  }
 
   const userMenu = {
     items: [
@@ -44,7 +64,6 @@ export const Header = () => {
 
   return (
     <AntHeader className="bg-white border-b border-gray-200 px-6 flex items-center justify-between sticky top-0 z-50 h-[64px]">
-      {/* Логотип */}
       <div className="flex items-center gap-8">
         <Link to={ROUTES.HOME} className="flex items-center gap-2 text-gray-800 hover:text-primary transition-colors">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-lg">
@@ -53,26 +72,21 @@ export const Header = () => {
           <span className="font-bold text-xl tracking-tight">ProdOpt</span>
         </Link>
 
-        {/* Главное меню */}
         {isAuth && (
           <Menu 
             mode="horizontal" 
             selectedKeys={[location.pathname]} 
             items={menuItems}
-            className="border-none w-[400px] bg-transparent"
+            className="border-none min-w-[400px] bg-transparent"
             style={{ lineHeight: '62px' }}
           />
         )}
       </div>
 
-      {/* Правая часть */}
       <div className="flex items-center gap-4">
         {isAuth ? (
           <>
-            {/* Колокольчик уведомлений (Включает в себя кнопку Test Notify, если она добавлена в NotificationBell) */}
             <NotificationBell />
-
-            {/* Профиль пользователя */}
             <Dropdown menu={userMenu} placement="bottomRight" arrow>
               <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 py-1 px-2 rounded-lg transition-colors">
                 <Avatar 

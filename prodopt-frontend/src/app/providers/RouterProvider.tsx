@@ -9,15 +9,25 @@ import { PartnersPage } from '@/pages/networking/PartnersPage';
 import { CatalogPage } from '@/pages/catalog/CatalogPage';
 import { ProductDetails } from '@/pages/catalog/ProductDetails';
 import { CreateProductPage } from '@/pages/catalog/CreateProductPage';
-import { DealsPage } from '@/pages/trade/DealsPage'; // <--- Добавлено
-import { DealDetailsPage } from '@/pages/trade/DealDetailsPage'; // <--- Добавлено
+import { DealsPage } from '@/pages/trade/DealsPage';
+import { DealDetailsPage } from '@/pages/trade/DealDetailsPage';
+import { DashboardPage } from '@/pages/admin/DashboardPage';
 import { useSessionStore } from '@/entities/session/model/store';
-// Импортируем созданный Layout
 import { MainLayout } from '@/widgets/Layout';
 
+// Guard для проверки авторизации (любой залогиненный пользователь)
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const isAuth = useSessionStore((state) => state.isAuth);
   return isAuth ? <>{children}</> : <Navigate to={ROUTES.LOGIN} />;
+};
+
+// Guard для проверки прав Супер-Админа (только user.id === 1)
+const AdminGuard = ({ children }: { children: React.ReactNode }) => {
+  const user = useSessionStore((state) => state.user);
+  // ID 1 зарезервирован за Супер-Админом в seed.ts
+  const isPlatformAdmin = user?.id === 1;
+  
+  return isPlatformAdmin ? <>{children}</> : <Navigate to={ROUTES.HOME} />;
 };
 
 const router = createBrowserRouter([
@@ -71,7 +81,6 @@ const router = createBrowserRouter([
         path: '/catalog/:id', 
         element: <ProductDetails />,
       },
-      // --- Trade Routes (Добавлено) ---
       {
         path: ROUTES.DEALS,
         element: <DealsPage />,
@@ -79,6 +88,15 @@ const router = createBrowserRouter([
       {
         path: '/trade/deals/:id',
         element: <DealDetailsPage />,
+      },
+      // --- Admin Route (Защищен AdminGuard) ---
+      {
+        path: ROUTES.ADMIN,
+        element: (
+          <AdminGuard>
+            <DashboardPage />
+          </AdminGuard>
+        ),
       },
     ]
   }

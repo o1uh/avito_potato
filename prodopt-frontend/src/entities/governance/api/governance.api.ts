@@ -3,7 +3,8 @@ import {
   CreateDisputeDto, 
   ResolveDisputeDto, 
   CreateReviewDto, 
-  Dispute 
+  Dispute,
+  Review // Импорт нового типа
 } from '../model/types';
 
 export const governanceApi = {
@@ -19,15 +20,21 @@ export const governanceApi = {
     return response.data;
   },
 
-  // Получить все споры (возвращает массив!)
+  // Получить все споры
   getAllDisputes: async () => {
-    const response = await $api.get<Dispute[]>('/disputes'); // <Dispute[]> важно для типизации
+    const response = await $api.get<Dispute[]>('/disputes'); 
     return response.data;
   },
 
   // Оставить отзыв
   createReview: async (dealId: number, dto: CreateReviewDto) => {
     const response = await $api.post(`/reviews/deal/${dealId}`, dto);
+    return response.data;
+  },
+
+  // --- НОВЫЙ МЕТОД ---
+  getCompanyReviews: async (companyId: number) => {
+    const response = await $api.get<Review[]>(`/reviews/company/${companyId}`);
     return response.data;
   }
 };

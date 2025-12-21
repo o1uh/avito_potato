@@ -1,8 +1,9 @@
-import { Card, Descriptions, Typography, Tooltip } from 'antd';
+import { Card, Descriptions, Typography, Tooltip, Space } from 'antd';
 import { Deal } from '../model/types';
 import { formatCurrency } from '@/shared/lib/currency';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { DealStatus } from '@/shared/config/enums';
 
 const { Text } = Typography;
 
@@ -12,13 +13,19 @@ interface Props {
 }
 
 export const DealInfoCard = ({ deal, isSupplier }: Props) => {
-  // Расчеты
   const totalAmount = Number(deal.totalAmount);
-  const deposited = Number(deal.escrowAccount?.amountDeposited || 0);
   const fee = Number(deal.escrowAccount?.platformFeeAmount || 0);
-  
-  // Для поставщика показываем "К получению" (сумма - комиссия)
   const toReceive = totalAmount - fee;
+  
+  const isPaid = deal.dealStatusId >= DealStatus.PAID;
+
+  // Формируем строку адреса
+  const address = deal.deliveryAddress;
+  const addressString = address 
+    ? [address.postalCode, address.country, address.city, address.street, address.house]
+        .filter(Boolean)
+        .join(', ') 
+    : null;
 
   return (
     <Card className="shadow-sm border-gray-200 h-full" title="Финансы и Логистика">
@@ -28,14 +35,13 @@ export const DealInfoCard = ({ deal, isSupplier }: Props) => {
         </Descriptions.Item>
         
         <Descriptions.Item label="Статус оплаты">
-          {deposited >= totalAmount ? (
-            <span className="text-green-600 font-medium">Оплачено (100%)</span>
+          {isPaid ? (
+            <span className="text-green-600 font-medium">Оплачено</span>
           ) : (
             <span className="text-orange-500">Ожидает оплаты</span>
           )}
         </Descriptions.Item>
 
-        {/* Секция для Поставщика */}
         {isSupplier && (
           <>
             <Descriptions.Item label="Комиссия платформы">
@@ -54,7 +60,6 @@ export const DealInfoCard = ({ deal, isSupplier }: Props) => {
           </>
         )}
 
-        {/* Логистика */}
         {deal.shipments && deal.shipments.length > 0 && (
           <>
             <Descriptions.Item label="Трек-номер">
@@ -64,25 +69,20 @@ export const DealInfoCard = ({ deal, isSupplier }: Props) => {
             <Descriptions.Item label="Дата отправки">
               {dayjs(deal.shipments[0].sentAt).format('DD.MM.YYYY')}
             </Descriptions.Item>
-            {deal.shipments[0].expectedDeliveryDate && (
-                <Descriptions.Item label="Ожидаемая доставка">
-                    {dayjs(deal.shipments[0].expectedDeliveryDate).format('DD.MM.YYYY')}
-                </Descriptions.Item>
-            )}
           </>
         )}
         
         <Descriptions.Item label="Адрес доставки">
-            {deal.deliveryAddress ? (
-                <div className="text-xs">
-                    {deal.deliveryAddress.city}, {deal.deliveryAddress.street}, {deal.deliveryAddress.house}
+            {addressString ? (
+                <div className="text-xs whitespace-pre-wrap">
+                    {addressString}
+                    {/* Комментарий удален из отображения */}
                 </div>
-            ) : <span className="text-gray-400 italic">Не указан</span>}
+            ) : (
+                <span className="text-gray-400 italic">Не указан</span>
+            )}
         </Descriptions.Item>
       </Descriptions>
     </Card>
   );
 };
-
-// Доп. импорт для Space, который забыли
-import { Space } from 'antd';
