@@ -178,7 +178,14 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   await buyerPage.click('button:has-text("Подтвердить и создать сделку")');
 
   // --- BUYER: Оплата ---
+  // Ждем редиректа на страницу сделки
   await expect(buyerPage).toHaveURL(/\/trade\/deals\/\d+/);
+  
+  // === ИСПРАВЛЕНИЕ: Извлекаем ID сделки из URL покупателя ===
+  const dealUrl = buyerPage.url();
+  const dealId = dealUrl.split('/').pop(); // Получаем ID (например, "1")
+  // ==========================================================
+
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('Согласована');
   
   await buyerPage.click('button:has-text("Оплатить")');
@@ -186,16 +193,37 @@ test('Full Trade Cycle: Buyer RFQ -> Supplier Offer -> Deal -> Payment -> Shipme
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('Оплачена');
 
   // --- SUPPLIER: Отгрузка ---
-  await supplierPage.goto('/trade/deals');
-  await supplierPage.click('div[role="tab"]:has-text("Сделки")'); 
-  await supplierPage.locator('.ant-card').first().click(); 
+  // Используем полученный dealId для перехода
+  await supplierPage.goto(`/trade/deals/${dealId}`);
   
-  await expect(supplierPage.locator('.ant-tag').first()).toContainText('Оплачена');
-  await supplierPage.click('button:has-text("Отгрузить заказ")');
-  await supplierPage.fill('input[id="trackingNumber"]', 'TRACK-999');
-  await supplierPage.click('button:has-text("Подтвердить отгрузку")');
-  await expect(supplierPage.locator('.ant-tag').first()).toContainText('В пути');
+  // Ждем загрузки статуса PAID, чтобы кнопка стала активна
+  await expect(supplierPage.locator('.ant-tag').first()).toContainText('Оплачена', { timeout: 15000 });
 
+  await supplierPage.click('button:has-text("Отгрузить заказ")');
+// Используем timestamp для уникальности
+  await supplierPage.fill('input[id="trackingNumber"]', `TRACK-${Date.now()}`);  // Убираем проверку статуса из предиката, чтобы поймать возможные ошибки (400/500) и не зависнуть
+  const shipmentResponsePromise = supplierPage.waitForResponse(response => 
+    response.url().includes('/shipment')
+  );
+
+  await supplierPage.click('button:has-text("Подтвердить отгрузку")');
+  
+  // Ждем завершения запроса
+  const shipmentResponse = await shipmentResponsePromise;
+  
+  // Логируем ошибку, если статус не 201, для упрощения отладки
+  if (shipmentResponse.status() !== 201) {
+    console.error('Shipment API Error:', await shipmentResponse.text());
+  }
+  
+  // Явно проверяем успешность
+  expect(shipmentResponse.status()).toBe(201);
+
+  // Ждем исчезновения модалки
+  await expect(supplierPage.locator('.ant-modal-content')).toBeHidden();
+
+  // Теперь проверяем статус. React Query должен был обновить данные.
+  await expect(supplierPage.locator('.ant-tag').first()).toContainText('В пути', { timeout: 10000 });
   // --- BUYER: Приемка ---
   await buyerPage.reload();
   await expect(buyerPage.locator('.ant-tag').first()).toContainText('В пути');
