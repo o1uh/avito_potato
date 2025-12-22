@@ -17,6 +17,7 @@ export const CreateOfferForm = ({ open, onClose, rfq, existingOffer, readOnly }:
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const [items, setItems] = useState<any[]>([]);
+  const [isInfoVisible, setIsInfoVisible] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -77,6 +78,16 @@ export const CreateOfferForm = ({ open, onClose, rfq, existingOffer, readOnly }:
       queryClient.invalidateQueries({ queryKey: ['offers-list'] });
     },
     onError: () => message.error('Ошибка обновления'),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: () => offerApi.reject(existingOffer!.id),
+    onSuccess: () => {
+      message.success('Предложение отклонено');
+      onClose();
+      queryClient.invalidateQueries({ queryKey: ['offers-list'] });
+    },
+    onError: () => message.error('Ошибка отклонения'),
   });
 
   const onFinish = (values: any) => {
@@ -146,10 +157,22 @@ export const CreateOfferForm = ({ open, onClose, rfq, existingOffer, readOnly }:
       onClose={onClose}
       open={open}
       extra={
-        !readOnly && (
+        !readOnly ? (
           <Button type="primary" onClick={() => form.submit()} loading={createMutation.isPending || negotiateMutation.isPending}>
             {existingOffer ? 'Сохранить изменения' : 'Отправить КП'}
           </Button>
+        ) : (
+          // --- КНОПКА ОТКЛОНЕНИЯ ---
+          // Показываем только если статус "Sent" (1)
+          existingOffer?.offerStatusId === 1 && (
+            <Button 
+                danger 
+                onClick={() => rejectMutation.mutate()} 
+                loading={rejectMutation.isPending}
+            >
+              Отклонить предложение
+            </Button>
+          )
         )
       }
     >
@@ -160,13 +183,13 @@ export const CreateOfferForm = ({ open, onClose, rfq, existingOffer, readOnly }:
           </div>
       )}
 
-      {readOnly && (
+      {readOnly && isInfoVisible && ( 
           <Alert 
             type="info" 
             showIcon
             message="Действия покупателя"
             description="Если условия вас не устраивают, свяжитесь с поставщиком через чат или отклоните предложение."
-            action={<Button size="small" danger onClick={onClose}>Закрыть</Button>}
+            action={<Button size="small" danger onClick={() => setIsInfoVisible(false)}>Скрыть</Button>}
             className="mb-6"
           />
       )}

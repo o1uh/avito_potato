@@ -51,7 +51,7 @@ export class OffersService {
         subject: 'Получено новое коммерческое предложение',
         message: `Поступило предложение по запросу #${dto.requestId}`,
         type: 'INFO',
-        entityType: 'deal', // Используем deal для перехода, или null
+        entityType: 'offer', // Используем deal для перехода, или null
         entityId: savedOffer.id // Или ID запроса
       });
     }
@@ -129,7 +129,44 @@ export class OffersService {
     } else {
       throw new BadRequestException('Неверный параметр type. Используйте sent или received');
     }
+    
   }
+  async reject(offerId: number, companyId: number) {
+    const offer = await this.prisma.commercialOffer.findUnique({
+      where: { id: offerId },
+      include: { purchaseRequest: true }
+    });
 
+    if (!offer) throw new NotFoundException('КП не найдено');
+
+    // Отклонить может только автор запроса (покупатель)
+    if (offer.purchaseRequest.buyerCompanyId !== companyId) {
+      throw new ForbiddenException('Вы не можете отклонить это предложение');
+    }
+
+    // Обновляем статус на 3 (Rejected)
+    const updatedOffer = await this.prisma.commercialOffer.update({
+      where: { id: offerId },
+      data: { offerStatusId: 3 },
+    });
+
+    // Уведомляем поставщика
+    const supplierUsers = await this.prisma.user.findMany({
+      where: { companyId: offer.supplierCompanyId, roleInCompanyId: { in: [1, 2] } }
+    });
+
+    for (const user of supplierUsers) {
+      await this.notificationsService.send({
+        userId: user.id,
+        subject: 'КП отклонено',
+        message: `Ваше предложение по запросу #${offer.purchaseRequestId} отклонено покупателем.`,
+        type: 'WARNING',
+        entityType: 'offer',
+        entityId: offer.id // Это направит на страницу офферов
+      });
+    }
+
+    return updatedOffer;
+  }
   
 }

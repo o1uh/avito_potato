@@ -10,6 +10,7 @@ import { productApi } from '@/entities/product/api/product.api';
 import { formatCurrency } from '@/shared/lib/currency';
 import { useState, useEffect, useMemo } from 'react';
 import { PartnerRequestBtn } from '@/features/networking/PartnerRequestBtn';
+import { CreateRfqModal } from '@/features/trade/CreateRfqModal';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -18,7 +19,7 @@ export const ProductDetails = () => {
   const navigate = useNavigate();
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [currentImage, setCurrentImage] = useState<string>('');
-  
+  const [isRfqModalOpen, setIsRfqModalOpen] = useState(false);
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ['product', id],
@@ -169,7 +170,7 @@ export const ProductDetails = () => {
                     type="primary" 
                     size="large" 
                     icon={<ShoppingCartOutlined />}
-                    disabled // Временно, пока нет функционала RFQ
+                    onClick={() => setIsRfqModalOpen(true)}
                   >
                     Запросить КП
                   </Button>
@@ -207,6 +208,12 @@ export const ProductDetails = () => {
           </div>
         </Col>
       </Row>
+      <CreateRfqModal
+        open={isRfqModalOpen}
+        onCancel={() => setIsRfqModalOpen(false)}
+        partnerId={product.supplierCompanyId}
+        preselectedProductVariantId={selectedVariantId || undefined}
+      />
     </div>
   );
 };

@@ -6,7 +6,7 @@ export interface Notification {
   title: string;
   message: string;
   type: NotificationType;
-  entityType?: 'deal' | 'dispute' | 'ticket' | 'system' | null;
+  entityType?: 'deal' | 'dispute' | 'ticket' | 'system' | 'offer' | null;
   entityId?: number | null;
   isRead: boolean;
   createdAt: string;

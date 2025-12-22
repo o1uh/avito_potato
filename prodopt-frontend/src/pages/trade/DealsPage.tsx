@@ -11,6 +11,7 @@ import { AcceptDealModal } from '@/features/trade/AcceptDealModal'; // Импо�
 import { DealKanban } from '@/widgets/DealKanban'; // Импорт Этапа 9
 import { PurchaseRequest, CommercialOffer, RequestStatus } from '@/entities/deal/model/types';
 import dayjs from 'dayjs';
+import { useSearchParams } from 'react-router-dom'; 
 
 const { Title } = Typography;
 
@@ -19,14 +20,14 @@ export const DealsPage = () => {
   
   // --- Состояния модалок ---
   const [isRfqModalOpen, setIsRfqModalOpen] = useState(false);
-  
+  const [searchParams, setSearchParams] = useSearchParams();
   const [offerDrawerState, setOfferDrawerState] = useState<{
       open: boolean;
       rfq?: PurchaseRequest;
       offer?: CommercialOffer;
       readOnly?: boolean;
   }>({ open: false });
-
+  const activeTab = searchParams.get('tab') || 'rfq';
   // Состояние для модалки принятия сделки (Этап 9)
   const [acceptModalState, setAcceptModalState] = useState<{
       open: boolean;
@@ -67,6 +68,9 @@ export const DealsPage = () => {
       setAcceptModalState({ open: true, offer });
   };
 
+  const handleTabChange = (key: string) => {
+    setSearchParams({ tab: key });
+  };
   // --- Колонки таблиц ---
 
   const rfqColumns = [
@@ -257,7 +261,11 @@ export const DealsPage = () => {
         <Title level={2} className="!m-0">Торговля</Title>
       </div>
 
-      <Tabs defaultActiveKey="rfq" items={items} />
+      <Tabs 
+        activeKey={activeTab} 
+        onChange={handleTabChange} 
+        items={items} 
+      />
 
       {/* Модалка создания RFQ */}
       <CreateRfqModal 

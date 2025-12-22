@@ -1,4 +1,4 @@
-import { Controller, Post, Put, Get, Body, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Post, Put, Get, Body, Param, ParseIntPipe, UseGuards, Query, Patch  } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -39,6 +39,15 @@ export class OffersController {
     @Query('type') type: 'sent' | 'received',
   ) {
     return this.offersService.findAll(companyId, type);
+  }
+
+  @Patch(':id/reject')
+  @ApiOperation({ summary: 'Отклонить КП (Покупатель)' })
+  async reject(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('companyId') companyId: number,
+  ) {
+    return this.offersService.reject(id, companyId);
   }
 
 }

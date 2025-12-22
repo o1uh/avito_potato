@@ -43,6 +43,11 @@ export const NotificationList = () => {
       return;
     }
 
+    if (item.entityType === 'offer') {
+      navigate(ROUTES.DEALS + '?tab=offers'); 
+      return;
+    }
+
     // Если это уведомление о партнерстве (мы на бэке ставили type='system', 
     // но можем определить по тексту или добавить тип 'partnership' в будущем)
     const lowerTitle = item.title.toLowerCase();

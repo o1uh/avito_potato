@@ -65,8 +65,9 @@ export class EscrowService {
 
   private async callProcedure(dealId: number, amount: number, operation: 'DEPOSIT' | 'RELEASE' | 'REFUND') {
     try {
-      // ИСПРАВЛЕНИЕ: Явное приведение типов (::integer, ::numeric)
-      await this.prisma.$executeRaw`CALL process_escrow(${dealId}::integer, ${amount}::numeric, ${operation})`;
+      // Используем executeRawUnsafe для обхода ошибки "incorrect binary data format"
+      // при передаче numeric параметров в CALL
+      await this.prisma.$executeRawUnsafe(`CALL process_escrow(${dealId}, ${amount}, '${operation}')`);
       
       this.logger.log(`Escrow operation ${operation} success for deal ${dealId}, amount: ${amount}`);
       return { success: true };

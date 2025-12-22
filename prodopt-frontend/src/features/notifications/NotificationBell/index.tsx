@@ -27,7 +27,10 @@ export const NotificationBell = () => {
     socket.on('notification', (payload: any) => {
       // 1. Инвалидируем кэш, чтобы список обновился (и счетчик)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-
+      
+      queryClient.invalidateQueries({ queryKey: ['offers-list'] });
+      queryClient.invalidateQueries({ queryKey: ['rfq-list'] });
+      queryClient.invalidateQueries({ queryKey: ['deals-list'] });
       // 2. Показываем всплывающее уведомление
       notification.open({
         message: payload.title || 'Новое уведомление',

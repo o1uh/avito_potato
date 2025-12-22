@@ -18,4 +18,9 @@ export const offerApi = {
     });
     return response.data;
   },
+
+  reject: async (id: number) => {
+    const response = await $api.patch<CommercialOffer>(`/trade/offers/${id}/reject`);
+    return response.data;
+  },
 };
