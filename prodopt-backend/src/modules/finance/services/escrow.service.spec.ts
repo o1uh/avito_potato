@@ -16,7 +16,8 @@ describe('EscrowService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
     },
-    $executeRaw: jest.fn(), // Для вызова CALL process_escrow
+    $executeRaw: jest.fn(), 
+    $executeRawUnsafe: jest.fn(), // FIX: Добавлен мок для Unsafe
   };
 
   beforeEach(async () => {
@@ -38,7 +39,6 @@ describe('EscrowService', () => {
   });
 
   afterEach(() => {
-    // ВАЖНО: resetAllMocks сбрасывает и историю, и реализации (mockResolvedValue)
     jest.resetAllMocks(); 
   });
 
@@ -70,15 +70,15 @@ describe('EscrowService', () => {
   // 2. Тест пополнения (Deposit)
   describe('deposit', () => {
     it('should call stored procedure with DEPOSIT operation', async () => {
-      mockPrisma.$executeRaw.mockResolvedValue(1); // Явно задаем успех
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(1); // FIX
 
       await service.deposit(100, 500);
 
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalled(); // FIX
     });
 
     it('should throw InternalServerErrorException on DB error', async () => {
-      mockPrisma.$executeRaw.mockRejectedValue(new Error('DB Connection Failed'));
+      mockPrisma.$executeRawUnsafe.mockRejectedValue(new Error('DB Connection Failed')); // FIX
 
       await expect(service.deposit(100, 500)).rejects.toThrow(InternalServerErrorException);
     });
@@ -89,19 +89,18 @@ describe('EscrowService', () => {
     it('should deduct fee and call stored procedure with RELEASE', async () => {
       const dealId = 100;
       
-      // Настраиваем моки
       mockPrisma.escrowAccount.findUnique.mockResolvedValue({
         dealId,
         amountDeposited: 1000,
         platformFeeAmount: 20,
       });
-      // ВАЖНО: Явно указываем успех для этого теста, чтобы перебить настройку из предыдущего теста
-      mockPrisma.$executeRaw.mockResolvedValue(1); 
+      
+      mockPrisma.$executeRawUnsafe.mockResolvedValue(1); // FIX
 
       await service.release(dealId);
       
       expect(mockPrisma.escrowAccount.findUnique).toHaveBeenCalledWith({ where: { dealId } });
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
+      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalled(); // FIX
     });
 
     it('should not call procedure if amount to release is <= 0', async () => {
@@ -113,10 +112,10 @@ describe('EscrowService', () => {
 
       await service.release(100);
 
-      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+      expect(mockPrisma.$executeRawUnsafe).not.toHaveBeenCalled(); // FIX
     });
   });
-
+  
   // 4. Тест точности вычислений
   describe('Calculations (CommissionService)', () => {
     it('should calculate percentage correctly', () => {
