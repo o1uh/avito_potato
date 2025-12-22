@@ -17,6 +17,7 @@ describe('Trade Module (e2e) - Full Flow', () => {
     inn: '733054782647', // Сбербанк (Покупатель)
     token: '',
     companyId: 0,
+    addressId: 0,
   };
 
   const supplierUser = {
@@ -110,6 +111,17 @@ describe('Trade Module (e2e) - Full Flow', () => {
       data: { name, inn: u.inn, ogrn: '123', organizationTypeId: orgTypeId },
     });
     u.companyId = company.id;
+
+    // Создаем адрес для компании (чтобы было что выбирать при Accept)
+    const addressType = await prisma.addressType.findFirst();
+    const address = await prisma.address.create({
+        data: { country: 'Россия', city: 'Москва', street: 'Ленина', house: '1' }
+    });
+    await prisma.companyAddress.create({
+        data: { companyId: company.id, addressId: address.id, addressTypeId: addressType?.id || 1 }
+    });
+    // Сохраняем ID адреса в объект юзера (если это покупатель)
+    if (u === buyerUser) u.addressId = address.id;
 
     // Создаем юзера
     const hash = await argon2.hash(u.password);
@@ -215,6 +227,7 @@ describe('Trade Module (e2e) - Full Flow', () => {
     await request(app.getHttpServer())
       .post(`/trade/deals/${dealId}/accept`)
       .set('Authorization', `Bearer ${buyerUser.token}`)
+      .send({ deliveryAddressId: buyerUser.addressId })
       .expect(201);
 
     const deal = await prisma.deal.findUnique({ where: { id: dealId } });

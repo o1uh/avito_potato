@@ -35,7 +35,7 @@ export class DealsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser('companyId') companyId: number,
     @CurrentUser('sub') userId: number,
-    @Body() body: { deliveryAddressId: number }, // <--- Явно получаем body
+    @Body() body: { deliveryAddressId?: number } = {},
   ) {
     // Передаем адрес в сервис
     return this.dealsService.changeStatus(id, userId, companyId, DealStatus.AGREED, body.deliveryAddressId);

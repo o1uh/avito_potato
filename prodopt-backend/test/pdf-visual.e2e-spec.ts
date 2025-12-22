@@ -25,6 +25,7 @@ describe('PDF Visual Verification (Save to Disk)', () => {
     token: '',
     companyId: 0,
     userId: 0,
+    addressId: 0,
   };
 
   const supplierUser = {
@@ -109,6 +110,7 @@ describe('PDF Visual Verification (Save to Disk)', () => {
     await prisma.companyAddress.create({
         data: { companyId: company.id, addressId: address.id, addressTypeId: addressType?.id || 1 }
     });
+    u.addressId = address.id;
 
     const hash = await argon2.hash(u.password);
     const user = await prisma.user.create({
@@ -257,7 +259,11 @@ describe('PDF Visual Verification (Save to Disk)', () => {
     }
     // -----------------------
 
-    await request(app.getHttpServer()).post(`/trade/deals/${dealId}/accept`).set('Authorization', `Bearer ${buyerUser.token}`).expect(201);
+    await request(app.getHttpServer())
+      .post(`/trade/deals/${dealId}/accept`)
+      .set('Authorization', `Bearer ${buyerUser.token}`)
+      .send({ deliveryAddressId: buyerUser.addressId })
+      .expect(201);
     await request(app.getHttpServer()).post(`/dev/trade/deals/${dealId}/deposit`).set('Authorization', `Bearer ${buyerUser.token}`).send({ amount: 500000 }).expect(201);
     await request(app.getHttpServer()).post(`/trade/deals/${dealId}/shipment`).set('Authorization', `Bearer ${supplierUser.token}`).send({ trackingNumber: `TRACK-${Date.now()}` }).expect(201);
     await request(app.getHttpServer()).post(`/trade/deals/${dealId}/confirm`).set('Authorization', `Bearer ${buyerUser.token}`).expect(201);
